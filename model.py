@@ -24,6 +24,7 @@ class GMN(nn.Module):
                 ref_points = torch.cat((ref_points, nn.init.xavier_uniform_(w, gain=2)), dim=0)
         self.ref_points = ref_points
 
+        # note: may need to fix this line to assign to multiple GPUs if they ever become available 
         self.device = "cuda" if self.args.cuda else "cpu"
         if args.cuda:
             self.ref_points = self.ref_points.to(self.device)
