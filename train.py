@@ -37,7 +37,8 @@ def train(ds, args, mask_nodes=True):
         total_num_cluster = len(args.num_centroids)
 
         model = GMN(0.2, 1, args, ds.max_nodes)
-        model = model.cuda()
+        device = "cuda" if args.cuda else "cpu"
+        model = model.to(device)
 
         print('Model configuration:')
         print(args)
@@ -67,13 +68,13 @@ def train(ds, args, mask_nodes=True):
             start = time.time()
             for batch_idx, batch in enumerate(ds.train):
                 batch_num_nodes = batch['num_nodes'].int().numpy() if mask_nodes else None
-                h0 = Variable(batch['feats'].float(), requires_grad=False).cuda()
-                label = Variable(batch['label'].long()).cuda()
+                h0 = Variable(batch['feats'].float(), requires_grad=False).to(device)
+                label = Variable(batch['label'].long()).to(device)
 
                 if args.use_rwr:
-                    adj = Variable(batch['rwr'].float(), requires_grad=False).cuda()
+                    adj = Variable(batch['rwr'].float(), requires_grad=False).to(device)
                 else:
-                    adj = Variable(batch['adj'].float(), requires_grad=False).cuda()
+                    adj = Variable(batch['adj'].float(), requires_grad=False).to(device)
 
                 for c_layer in range(total_num_cluster):
                     if total_num_cluster == 1 or c_layer == 0:
@@ -149,13 +150,13 @@ def train(ds, args, mask_nodes=True):
                 model.eval()
                 for val_batch_idx, batch_val in enumerate(ds.val):
                     batch_num_nodes = batch_val['num_nodes'].int().numpy() if mask_nodes else None
-                    h0 = Variable(batch_val['feats'].float(), requires_grad=False).cuda()
-                    label = Variable(batch_val['label'].long()).cuda()
+                    h0 = Variable(batch_val['feats'].float(), requires_grad=False).to(device)
+                    label = Variable(batch_val['label'].long()).to(device)
 
                     if args.use_rwr:
-                        adj = Variable(batch_val['rwr'].float(), requires_grad=False).cuda()
+                        adj = Variable(batch_val['rwr'].float(), requires_grad=False).to(device)
                     else:
-                        adj = Variable(batch_val['adj'].float(), requires_grad=False).cuda()
+                        adj = Variable(batch_val['adj'].float(), requires_grad=False).to(device)
 
                     for c_layer in range(total_num_cluster):
                         if total_num_cluster == 1 or c_layer == 0:
@@ -228,8 +229,13 @@ def main():
     warnings.filterwarnings("ignore")
     #set_seeds()
     args = get_parser()
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_index
-    print('CUDA', args.cuda_index)
+
+    # handle cuda value
+    if args.cuda:
+        if not torch.cuda.is_available():
+            raise ValueError("CUDA not available! Run with --no-cuda instead.")
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_index
+        print('CUDA', args.cuda_index)
 
     datasets = ('ENZYMES', 'DD', 'REDDIT-MULTI-12K', 'COLLAB', 'PROTEINS_full', 'REDDIT-BINARY')
     benchmark = datasets[0]

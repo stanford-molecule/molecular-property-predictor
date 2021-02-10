@@ -24,8 +24,9 @@ class GMN(nn.Module):
                 ref_points = torch.cat((ref_points, nn.init.xavier_uniform_(w, gain=2)), dim=0)
         self.ref_points = ref_points
 
+        self.device = "cuda" if self.args.cuda else "cpu"
         if args.cuda:
-            self.ref_points = self.ref_points.cuda()
+            self.ref_points = self.ref_points.to(self.device)
 
         self.q = [0] * self.args.cluster_heads
         self.p = [0] * self.args.cluster_heads
@@ -58,7 +59,7 @@ class GMN(nn.Module):
     def forward(self, x_node, adj, epoch, graph_sizes, c_layer, master_node_flag):
         self.master_node_flag = master_node_flag
         if self.master_node_flag:  # Creating the super node connected to every node
-            master_adj, master_feat = adj.cuda(), x_node.cuda()
+            master_adj, master_feat = adj.to(self.device), x_node.to(self.device)
 
         # we need it only for the first layer
         if c_layer == 0:
@@ -69,9 +70,9 @@ class GMN(nn.Module):
             # size: same az p
             graph_broad = graph_sizes.view(-1, 1, 1).repeat(1, self.args.num_centroids[c_layer], adj.shape[1])
             if self.args.cuda:
-                aranger = aranger.cuda()
-                graph_broad = graph_broad.cuda()
-                self.centroids = self.centroids.cuda()
+                aranger = aranger.to(self.device)
+                graph_broad = graph_broad.to(self.device)
+                self.centroids = self.centroids.to(self.device)
             self.mask = aranger < graph_broad
         else:
             self.mask = None
@@ -130,14 +131,14 @@ class GMN(nn.Module):
         # same size az points
         batch_centroids_broad = torch.unsqueeze(batch_centroids, 3).repeat(1, 1, 1, points.shape[3], 1)
         if self.args.cuda:
-            batch_centroids_broad = batch_centroids_broad.cuda()
+            batch_centroids_broad = batch_centroids_broad.to(self.device)
 
         # size [batch_size, cHeads, centrs, graphsize]
         dist = torch.sum(torch.abs(points - batch_centroids_broad) ** 2, 4)
         if self.mask is not None:
             self.mask_broad = torch.unsqueeze(self.mask, 1).repeat(1, self.args.cluster_heads, 1, 1)
             m = torch.tensor(self.mask_broad, dtype=torch.float32)
-            dist = dist * m.cuda()
+            dist = dist * m.to(self.device)
 
         nu = 1  # this is a hyperparameter, same as the one in the taxonomy paper
         q = torch.pow((1 + dist / nu), -(nu + 1) / 2)
@@ -147,7 +148,7 @@ class GMN(nn.Module):
         if self.mask is not None:
             self.mask_broad = torch.unsqueeze(self.mask, 1).repeat(1, self.args.cluster_heads, 1, 1)
             m = torch.tensor(self.mask_broad, dtype=torch.float32)
-            q = q * m.cuda()
+            q = q * m.to(self.device)
 
         if self.args.cluster_heads > 1:
             if self.args.cHeadsPool == 'mean':
@@ -162,7 +163,7 @@ class GMN(nn.Module):
             # Sums to one for all of the nodes
             q = torch.softmax(q, 1)
             if self.mask is not None:
-                m = torch.tensor(self.mask, dtype=torch.float32).cuda()
+                m = torch.tensor(self.mask, dtype=torch.float32).to(self.device)
                 q = q * m
         else:
             q = torch.squeeze(q)
@@ -179,12 +180,12 @@ class GMN(nn.Module):
         p = p / denominator
 
         if self.mask is not None:
-            p = p + 1 - m.cuda()
-            q = q + 1 - m.cuda()
+            p = p + 1 - m.to(self.device)
+            q = q + 1 - m.to(self.device)
             hard_loss2 = p * torch.log(p / q)
             hard_loss2[~self.mask] = 0
             self.hard_loss = 100 * torch.sum(hard_loss2)
-            q = q - 1 + m.cuda()
+            q = q - 1 + m.to(self.device)
 
         q_adj = torch.matmul(q, adj)
         new_adj = torch.matmul(q_adj, q.transpose(1, 2))
@@ -194,7 +195,7 @@ class GMN(nn.Module):
                 new_adj[:, 0:-1, :] = 0.
             else:
                 dg = torch.diag(torch.ones(new_adj.shape[1]))
-                new_adj = torch.unsqueeze(dg, 0).repeat(new_adj.shape[0], 1, 1).cuda()
+                new_adj = torch.unsqueeze(dg, 0).repeat(new_adj.shape[0], 1, 1).to(self.device)
 
         new_feat = torch.matmul(q, x)
 

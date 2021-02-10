@@ -9,7 +9,10 @@ def get_parser():
     parser.add_argument('--dataset', dest='dataset', type=str, help='Dataset name')
 
     parser.add_argument('--cuda_index', dest='cuda_index', type=str, default='1', help='GPU index')
-    parser.add_argument('--cuda', dest='cuda', type=bool, default=True, help='Use GPU if set to True')
+    # parser.add_argument('--cuda', dest='cuda', type=bool, default=True, help='Use GPU if set to True')
+    parser.add_argument('--cuda', dest='cuda', action='store_true')
+    parser.add_argument('--no-cuda', dest='cuda', action='store_false')
+    parser.set_defaults(cuda=False)
 
     parser.add_argument('--max-nodes', dest='max_nodes', type=int, default=1000, help='Maximum #nodes')
     parser.add_argument('--lr', dest='lr', type=float, default=2e-3, help='Learning rate')
