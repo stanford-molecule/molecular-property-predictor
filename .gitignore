@@ -1,5 +1,7 @@
 # Repo-specific identifiers
 logs
+data/**
+data/*
 
 
 # Byte-compiled / optimized / DLL files
