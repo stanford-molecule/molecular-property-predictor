@@ -1,18 +1,21 @@
-# Memory-Based Graph Networks (MGN)
+## GraphMemoryNet Implementation
 
-This work introduces an efficient memory layer to jointly learn representations and coarsen the input graphs.
+This repo was forked from the official published code base for the GraphMemoryNet. Edits are made to 
+make the code work for our use case (and eventually the OGB dataset format).
 
-It has been accepted at ICLR 2020:
+## Getting Started
 
-[https://openreview.net/forum?id=r1laNeBYPB](https://openreview.net/forum?id=r1laNeBYPB)
+```
+conda create -n gmn python=3.6
+conda activate gmn
+pip install -r requirements.txt
 
-[https://arxiv.org/abs/2002.09518](https://arxiv.org/abs/2002.09518)
+# if you have CUDA/GPU
+pyhon train.py --cuda
 
-<br/>
-<br/>
-
-
-![](img/mgn.png)
+# if not
+python train.py --no-cuda
+```
 
 
 ## Reference
