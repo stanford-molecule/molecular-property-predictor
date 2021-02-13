@@ -5,7 +5,7 @@ make the code work for our use case (and eventually the OGB dataset format).
 
 ## Getting Started
 
-```
+```bash
 conda create -n gmn python=3.6
 conda activate gmn
 pip install -r requirements.txt
