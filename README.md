@@ -18,7 +18,7 @@ pip install torch
 bash install.sh
 
 # Let's install the rest of the dependencies here
-pip install -r ogb-requirements.txt
+pip install -r requirements.txt
 
 # Great! Hopefully that worked. Let's see if we can run the model code using the molecular dataset
 # Note: we aren't using OGB yet, but it's the same dataset (slightly different format/data loader).
