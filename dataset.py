@@ -147,6 +147,7 @@ class Dataset(object):
             num_unique_node_labels = max(node_labels) + 1
         else:
             print('No node labels')
+            node_labels = []
 
         node_attrs = []
         if os.path.exists('{0}_node_attributes.txt'.format(prefix)):
@@ -200,6 +201,7 @@ class Dataset(object):
         if os.path.exists('{0}_rwrs.npy'.format(prefix)):
             rwrs = np.load('{0}_rwrs.npy'.format(prefix), allow_pickle=True)
         else:
+            print("No rwrs found. Computing them now...")
             pool = Pool(cpu_count())
             rwrs = pool.map(compute_rwr, graphs)
             np.save('{0}_rwrs.npy'.format(prefix), rwrs)

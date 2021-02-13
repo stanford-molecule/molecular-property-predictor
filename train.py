@@ -1,5 +1,6 @@
 import os
 import time
+import tqdm
 import torch
 import json
 import numpy as np
@@ -66,7 +67,7 @@ def train(ds, args, mask_nodes=True):
                     adjust_learning_rate(optimizer1, optimizer2, optimizer3, lr, decay=0.5)
 
             start = time.time()
-            for batch_idx, batch in enumerate(ds.train):
+            for batch_idx, batch in tqdm.tqdm(enumerate(ds.train), total=len(ds.train)):
                 batch_num_nodes = batch['num_nodes'].int().numpy() if mask_nodes else None
                 h0 = Variable(batch['feats'].float(), requires_grad=False).to(device)
                 label = Variable(batch['label'].long()).to(device)
@@ -238,8 +239,9 @@ def main():
         print('CUDA', args.cuda_index)
 
     datasets = ('ENZYMES', 'DD', 'REDDIT-MULTI-12K', 'COLLAB', 'PROTEINS_full', 'REDDIT-BINARY')
-    benchmark = datasets[0]
-    args.dataset = benchmark
+    # benchmark = datasets[0]
+    # args.dataset = benchmark
+    benchmark = args.dataset
 
     now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     args.logdir = f'logs/{benchmark}/{now}'
