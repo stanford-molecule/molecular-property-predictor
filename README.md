@@ -1,4 +1,4 @@
-## Molecule Property Predictor
+## Molecular Property Predictor
 
 ## Introduction
 
