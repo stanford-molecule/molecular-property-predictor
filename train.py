@@ -26,6 +26,7 @@ def adjust_learning_rate(optimizer1, optimizer2, optimizer3, lr, decay=0.5):
 
 def train(ds, args, mask_nodes=True):
     val_accs = []
+    val_rocs = []
     configure(f'{args.logdir}/tensorboard')
 
     for k in range(10):
@@ -34,7 +35,7 @@ def train(ds, args, mask_nodes=True):
 
         lr = args.lr
         patience_counter = 0
-        best_train_acc, best_val_acc = 0.0, 0.0
+        best_train_acc, best_val_acc, best_train_roc, best_val_roc = 0.0, 0.0, 0.0, 0.0
         total_num_cluster = len(args.num_centroids)
 
         model = GMN(0.2, 1, args, ds.max_nodes)
@@ -44,8 +45,7 @@ def train(ds, args, mask_nodes=True):
         print('Model configuration:')
         print(args)
 
-        param_dict = [{'params': model.centroids, 'lr': lr},
-                      {'params': list(model.parameters())[1:], 'lr': lr}]
+        param_dict = [{'params': model.centroids, 'lr': lr}, {'params': list(model.parameters())[1:], 'lr': lr}]
         param_dict_3 = [{'params': list(model.parameters())[1:], 'lr': lr}]
 
         optimizer1 = torch.optim.Adam(param_dict, lr=lr, weight_decay=args.weight_decay)
@@ -57,9 +57,8 @@ def train(ds, args, mask_nodes=True):
         print('#Epochs: ', args.num_epochs)
 
         for epoch in range(args.num_epochs):
-            labels_list, preds_list, loss_list, \
-            labels_list_val, preds_list_val = \
-            [], [], [], [], []
+            labels_list, preds_list, loss_list, labels_list_val = [], [], [], []
+            preds_list_val, scores_list, scores_list_val = [], [], []
 
             model.train()
             if ((epoch + 1) % args.decay_step) == 0:
@@ -122,9 +121,10 @@ def train(ds, args, mask_nodes=True):
                     optimizer3.step()
 
                 labels_list.append(label.detach().cpu().numpy())
-                __, idx = torch.max(preds, 1)
+                score, idx = torch.max(preds, 1)
 
                 preds_list.append(idx.detach().data.cpu().numpy())
+                scores_list.append(score.detach().data.cpu().numpy())
                 loss_list.append(loss.detach().data.cpu().numpy())
 
             if (epoch+1) % args.backward_period == 1 and \
@@ -176,14 +176,23 @@ def train(ds, args, mask_nodes=True):
                                 model(new_feat, new_adj, epoch, batch_num_nodes, c_layer, master_node_flag)
                     preds_val = torch.squeeze(h_prime)
                     labels_list_val.append(label.cpu().numpy())
-                    __, idx_val = torch.max(preds_val, 1)
+                    scores_val, idx_val = torch.max(preds_val, 1)
 
                     preds_list_val.append(idx_val.detach().data.cpu().numpy())
+                    scores_list_val.append(scores_val.detach().data.cpu().numpy())
 
-            acc_train = metrics.accuracy_score(np.squeeze(np.hstack(labels_list)), np.hstack(preds_list))
-            acc_val = metrics.accuracy_score(np.squeeze(np.hstack(labels_list_val)), np.hstack(preds_list_val))
+            y_true, y_pred = np.squeeze(np.hstack(labels_list)), np.hstack(preds_list)
+            y_scores = np.hstack(scores_list)
+            y_true_val, y_pred_val = np.squeeze(np.hstack(labels_list_val)), np.hstack(preds_list_val)
+            y_scores_val = np.hstack(scores_list_val)
+            acc_train = metrics.accuracy_score(y_true, y_pred)
+            roc_train = metrics.roc_auc_score(y_true, y_scores)
+            acc_val = metrics.accuracy_score(y_true_val, y_pred_val)
+            roc_val = metrics.roc_auc_score(y_true_val, y_scores_val)
             best_val_acc = acc_val if acc_val > best_val_acc else best_val_acc
             best_train_acc = acc_train if acc_train > best_train_acc else best_train_acc
+            best_val_roc = roc_val if roc_val > best_val_roc else best_val_roc
+            best_train_roc = roc_train if roc_train > best_train_roc else best_train_roc
 
             if epoch % 1 == 0:
                 print('*' * 40)
@@ -209,12 +218,13 @@ def train(ds, args, mask_nodes=True):
         torch.save(model.state_dict(), f'{args.logdir}/checkpoints/model_fold{k + 1}.pkl')
 
         val_accs.append(100 * round(best_val_acc, 4))
+        val_rocs.append(100 * round(best_val_roc, 4))
         acc = str([f'{a:.2f}%' for a in val_accs])
         print('*' * 40)
         print(f'Validation accuracy upto fold {k + 1}: {acc}')
         print(f'Mean validation accuracy upto fold {k + 1}: {np.mean(val_accs):.2f}%')
 
-    return val_accs
+    return val_accs, val_rocs
 
 
 def set_seeds():
@@ -255,12 +265,13 @@ def main():
     args.num_classes = ds.num_class
     args.num_centroids = [int(x) for x in args.num_centroids.split(',') if x.strip().isdigit()]
 
-    val_accs = train(ds, args)
+    val_accs, val_rocs = train(ds, args)
     args.mean_validation_accuracy = np.mean(val_accs)
     args.std_validation_accuracy = np.std(val_accs)
     args.best_fold = int(np.argmax(val_accs))
     args.best_validation_accuracy = np.max(val_accs)
     args.validation_accuracies = val_accs
+    # TODO: add ROC metrics to `args`
 
     with open(f'{args.logdir}/summary.json', 'w') as f:
         json.dump(args.__dict__, f, indent=2)
@@ -268,4 +279,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
