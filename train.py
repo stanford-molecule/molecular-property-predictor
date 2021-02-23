@@ -199,8 +199,11 @@ def train(ds, args, mask_nodes=True):
                 print(f'Fold:{k + 1}, Epoch:{epoch + 1}, Time:{end - start:.2f}s')
                 print(f'Train loss:{np.mean(loss_list):.4f}')
                 print(f'Train accuracy:{acc_train * 100:.2f}%, Validation accuracy:{acc_val * 100:.2f}%')
+                print(f'Train ROC:{roc_train * 100:.2f}%, Validation ROC:{roc_val * 100:.2f}%')
                 print(f'Best train accuracy:{best_train_acc * 100:.2f}%')
                 print(f'Best validation accuracy:{best_val_acc * 100:.2f}%')
+                print(f'Best train ROC: {best_train_roc * 100:.2f}%')
+                print(f'Best validation ROC: {best_val_roc * 100:.2f}%')
 
             if acc_val < best_val_acc:
                 patience_counter += 1
@@ -238,7 +241,7 @@ def set_seeds():
 def main():
     import warnings
     warnings.filterwarnings("ignore")
-    #set_seeds()
+    # set_seeds()
     args = get_parser()
 
     # handle cuda value

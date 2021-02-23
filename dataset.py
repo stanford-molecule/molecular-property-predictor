@@ -156,7 +156,8 @@ class Dataset(object):
                     [np.array([float(attr) for attr in re.split("[,\s]+", line.strip("\s\n")) if attr])
                      for line in f])
             node_attrs -= np.mean(node_attrs, axis=0)
-            node_attrs /= np.std(node_attrs, axis=0)
+            s = np.std(node_attrs, axis=0)
+            node_attrs /= np.where(s == 0, 1, s)
         else:
             print('No node attributes')
 
