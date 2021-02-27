@@ -1,12 +1,13 @@
+import networkx as nx
+import numpy as np
 import os
+import random
 import re
 import torch
-import random
-import numpy as np
-import networkx as nx
 import torch.utils.data
 from collections import Counter
 from multiprocessing import Pool, cpu_count
+
 from utils import compute_rwr, normalize_adjacency
 
 
