@@ -1,16 +1,17 @@
-import os
-import time
-import tqdm
-import torch
 import json
 import numpy as np
+import os
 import sklearn.metrics as metrics
-from model import GMN
+import time
+import torch
+import tqdm
+from datetime import datetime
+from tensorboard_logger import configure, log_value
+from torch.autograd import Variable
+
 from args import get_parser
 from dataset import Dataset
-from datetime import datetime
-from torch.autograd import Variable
-from tensorboard_logger import configure, log_value
+from model import GMN
 
 
 def adjust_learning_rate(optimizer1, optimizer2, optimizer3, lr, decay=0.5):
@@ -268,4 +269,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
