@@ -27,7 +27,7 @@ pip install -r requirements.txt
 If you have CUDA, run
 
 ```sh
-pyhon train.py --cuda --num_epochs 5 --dataset ogbg-mol-hiv_full
+python train.py --cuda --num_epochs 5 --dataset ogbg-mol-hiv_full
 ```
 
 If not, run
