@@ -98,6 +98,7 @@ def train(ds, args, mask_nodes=True):
                         model(new_feat, new_adj, epoch, batch_num_nodes, c_layer, master_node_flag)
 
                 preds = torch.squeeze(h_prime)
+                preds = torch.sigmoid(preds)
                 loss = model.loss(preds, label)
                 model.centroids.requires_grad_(False)
                 if (epoch + 1) % args.backward_period == 1 and \
@@ -251,10 +252,9 @@ def main():
         os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_index
         print('CUDA', args.cuda_index)
 
-    datasets = ('ENZYMES', 'DD', 'REDDIT-MULTI-12K', 'COLLAB', 'PROTEINS_full', 'REDDIT-BINARY')
+    # datasets = ('ENZYMES', 'DD', 'REDDIT-MULTI-12K', 'COLLAB', 'PROTEINS_full', 'REDDIT-BINARY')
     # benchmark = datasets[0]
     # args.dataset = benchmark
-    benchmark = args.dataset
 
     now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     args.logdir = f'logs/{benchmark}/{now}'
@@ -262,7 +262,7 @@ def main():
     if not os.path.exists(f'{args.logdir}/checkpoints'):
         os.makedirs(f'{args.logdir}/checkpoints')
 
-    ds = Dataset(name=benchmark, max_nodes=1000, num_folds=10)
+    ds = Dataset(name=args.dataset, max_nodes=args.max_nodes, num_folds=args.num_folds, epsilon=args.epsilon)
     args.input_dim = ds.feat_dim
     args.output_dim = args.input_dim
     args.num_classes = ds.num_class

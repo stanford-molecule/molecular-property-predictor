@@ -58,16 +58,18 @@ class GraphSampler(torch.utils.data.Dataset):
 
 
 class Dataset(object):
-    def __init__(self, name, max_nodes, num_folds):
+    def __init__(self, name, max_nodes, num_folds, epsilon: float, random_seed: int):
         self.name = name
         self.train = None
         self.val = None
         self.batch_size = None
         self.num_folds = num_folds
         self.num_workers = 0
+        self.epsilon = epsilon
+        self.random_seed = random_seed
 
-        self.graphs = self.load(name, max_nodes)
-        random.Random(314).shuffle(self.graphs)
+        self.graphs = self.load(name, max_nodes, self.epsilon)
+        random.Random(self.random_seed).shuffle(self.graphs)
         self.num_class = len(set([graph.graph['label'] for graph in self.graphs]))
         self.max_nodes = max([graph.number_of_nodes() for graph in self.graphs])
         self.feat_dim = len(self.graphs[0].nodes[list(self.graphs[0].nodes.keys())[0]]['feat'])
@@ -131,9 +133,8 @@ class Dataset(object):
             os.system('rm {0}'.format(zipfile))
 
     # This function is partly borrowed from https://github.com/RexYing/diffpool
-    @staticmethod
-    def load(dataset, max_nodes=1000):
-        Dataset.download(dataset)
+    def load(self, dataset, max_nodes, epsilon: float):
+        self.download(dataset)
         src = os.path.join(os.path.dirname(__file__), 'data')
         prefix = os.path.join(src, dataset, dataset)
 
@@ -156,8 +157,9 @@ class Dataset(object):
                     [np.array([float(attr) for attr in re.split("[,\s]+", line.strip("\s\n")) if attr])
                      for line in f])
             node_attrs -= np.mean(node_attrs, axis=0)
-            s = np.std(node_attrs, axis=0)
-            node_attrs /= np.where(s == 0, 1, s)
+            var = np.var(node_attrs, axis=0)
+            den = (var + epsilon) ** .5
+            node_attrs /= den
         else:
             print('No node attributes')
 
@@ -230,13 +232,13 @@ class Dataset(object):
 
 if __name__ == '__main__':
     datasets = ('ENZYMES', 'DD', 'REDDIT-MULTI-12K', 'COLLAB', 'PROTEINS_full')
-    epoch_num = 3
-    num_folds = 10
-    ds = Dataset(name=datasets[0], max_nodes=1000, num_folds=num_folds)
+    epochs_ = 3
+    num_folds_ = 10
+    ds = Dataset(name=datasets[0], max_nodes=1000, num_folds=num_folds_, epsilon=1e-3, random_seed=0)
 
-    for k in range(num_folds):
-        ds.process(batch_size=20, val_idx=k, normalize_adj=False)
-        for epoch in range(epoch_num):
+    for fold_idx in range(num_folds_):
+        ds.process(batch_size=20, val_idx=fold_idx, normalize_adj=False)
+        for epoch in range(epochs_):
             print('Epoch {0} --------------------'.format(epoch))
             for batch_idx, batch in enumerate(ds.train):
                 assert len(batch['feats'][0][0]) == ds.feat_dim, '{0}-{1}'.format(len(batch['feats'][0]), ds.feat_dim)
