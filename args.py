@@ -14,7 +14,9 @@ def get_parser():
     parser.add_argument('--no-cuda', dest='cuda', action='store_false')
     parser.set_defaults(cuda=False)
 
-    parser.add_argument('--max-nodes', dest='max_nodes', type=int, default=1000, help='Maximum #nodes')
+    parser.add_argument('--max-nodes', dest='max_nodes', type=int, default=1_000_000, help='Maximum #nodes')
+    parser.add_argument('--random-seed', dest='random_seed', type=int, default=0, help='Random seed')
+    parser.add_argument('--epsilon', dest='epsilon', type=float, default=1e-3, help='Epsilon')
     parser.add_argument('--lr', dest='lr', type=float, default=2e-3, help='Learning rate')
     parser.add_argument('--clip', dest='clip', type=float, default=2.0, help='Gradient clipping')
     parser.add_argument('--batch_size', dest='batch_size', type=int, default=16, help='Batch size')
