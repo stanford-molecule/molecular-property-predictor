@@ -14,7 +14,7 @@ run the code with a newer version so that it will be easier to integrate with OG
 #### Sanity check the code with original dataset
 
 ```bash
-conda create -n gmn python=3.6
+conda create -n gmn python=3.7  # 3.6 doesn't play nice with ogb for some reason
 conda activate gmn
 pip install -r requirements.txt
 
@@ -32,7 +32,7 @@ Luckily, it seems like the code might just work using the latest version of PyTo
 follow these instructions.
 
 ```bash
-conda create -n ogb python=3.6
+conda create -n ogb python=3.7
 conda activate ogb
 
 
