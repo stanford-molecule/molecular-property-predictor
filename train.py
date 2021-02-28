@@ -252,12 +252,8 @@ def main():
         os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_index
         print('CUDA', args.cuda_index)
 
-    # datasets = ('ENZYMES', 'DD', 'REDDIT-MULTI-12K', 'COLLAB', 'PROTEINS_full', 'REDDIT-BINARY')
-    # benchmark = datasets[0]
-    # args.dataset = benchmark
-
     now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    args.logdir = f'logs/{benchmark}/{now}'
+    args.logdir = f'logs/{args.dataset}/{now}'
 
     if not os.path.exists(f'{args.logdir}/checkpoints'):
         os.makedirs(f'{args.logdir}/checkpoints')
