@@ -258,7 +258,13 @@ def main():
     if not os.path.exists(f'{args.logdir}/checkpoints'):
         os.makedirs(f'{args.logdir}/checkpoints')
 
-    ds = Dataset(name=args.dataset, max_nodes=args.max_nodes, num_folds=args.num_folds, epsilon=args.epsilon)
+    ds = Dataset(
+        name=args.dataset,
+        max_nodes=args.max_nodes,
+        num_folds=args.num_folds,
+        epsilon=args.epsilon,
+        random_seed=args.random_seed
+    )
     args.input_dim = ds.feat_dim
     args.output_dim = args.input_dim
     args.num_classes = ds.num_class
