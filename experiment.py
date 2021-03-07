@@ -183,6 +183,8 @@ class Experiment:
                 loss += loss_tensor.item()
                 loss_tensor.backward()
                 self.optimizer.step()
+            else:
+                raise ValueError("how is this possible???")
 
         return loss
 
