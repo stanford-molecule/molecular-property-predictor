@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 import numpy as np
 import torch.nn as nn
@@ -6,56 +8,81 @@ import torch.nn.functional as F
 
 class GMN(nn.Module):
     """Dense version of GMN."""
-    def __init__(self, alpha, e_out, args, max_nodes, prior_centroids=None):
+    def __init__(
+            self,
+            alpha: float,
+            e_out: int,
+            input_dim: int,
+            hidden_dim: int,
+            output_dim: int,
+            pos_dim: int,
+            num_centroids: List[int],
+            max_nodes: int,
+            cluster_heads: int,
+            dropout: float,
+            batchnorm: bool,
+            c_heads_pool: str,
+            prior_centroids=None,
+            num_classes: int = 2
+    ):
         super(GMN, self).__init__()
-        self.args = args
         self.e_out = e_out
-        self.fc = nn.Linear(args.hidden_dim, 2)
-        self.bn2 = torch.nn.BatchNorm1d(args.output_dim + args.positional_hiddim)
-        self.total_cluster_layers = len(args.num_centroids) - 1
-        self.total_centroids = sum(self.args.num_centroids)
+        self.cluster_heads = cluster_heads
+        self.hidden_dim = hidden_dim
+        self.positional_hiddim = pos_dim
+        self.num_centroids = num_centroids
+        self.dropout = dropout
+        self.batchnorm = batchnorm
+        self.c_heads_pool = c_heads_pool
 
-        w = torch.empty(1, args.output_dim + e_out)
+        self.fc = nn.Linear(hidden_dim, 2)
+        self.bn2 = torch.nn.BatchNorm1d(output_dim + pos_dim)
+        self.total_cluster_layers = len(num_centroids) - 1
+        self.total_centroids = sum(num_centroids)
 
-        for i in range(args.hidden_dim):
-            if i == 0:
-                ref_points = nn.init.xavier_uniform_(w, gain=2)
-            else:
-                ref_points = torch.cat((ref_points, nn.init.xavier_uniform_(w, gain=2)), dim=0)
-        self.ref_points = ref_points
+        w = torch.empty(1, output_dim + e_out)
 
-        # note: may need to fix this line to assign to multiple GPUs if they ever become available 
-        self.device = "cuda" if self.args.cuda else "cpu"
-        if args.cuda:
+        self.ref_points = nn.init.xavier_uniform_(w, gain=2)
+        for i in range(1, hidden_dim):
+            self.ref_points = torch.cat((self.ref_points, nn.init.xavier_uniform_(w, gain=2)), dim=0)
+
+        # note: may need to fix this line to assign to multiple GPUs if they ever become available
+        # TODO: match this with `Experiment`
+        self.device = torch.device("cuda" if self.has_gpu else "cpu")
+        if self.has_gpu:
             self.ref_points = self.ref_points.to(self.device)
 
-        self.q = [0] * self.args.cluster_heads
-        self.p = [0] * self.args.cluster_heads
-        self.q_adj = [0] * self.args.cluster_heads
-        self.new_adj = [0] * self.args.cluster_heads
-        self.new_feat = [0] * self.args.cluster_heads
+        self.q = [0] * self.cluster_heads
+        self.p = [0] * self.cluster_heads
+        self.q_adj = [0] * self.cluster_heads
+        self.new_adj = [0] * self.cluster_heads
+        self.new_feat = [0] * self.cluster_heads
 
         if prior_centroids is None:
             self.centroids = \
                 nn.Parameter(2 * torch.rand(
-                    self.args.cluster_heads,
-                    (self.total_centroids - 1) * (self.args.hidden_dim // 2 + self.args.positional_hiddim)) - 1)
+                    self.cluster_heads,
+                    (self.total_centroids - 1) * (self.hidden_dim // 2 + self.positional_hiddim)) - 1)
         else:
             self.centroids = nn.Parameter(prior_centroids)
 
         self.centroids.requires_grad = True
-        self.last_layer_dnn = nn.Linear(self.args.hidden_dim // 2 + args.positional_hiddim, args.num_classes)
-        self.lower_dimension_last = nn.Linear(args.hidden_dim, args.output_dim)
+        self.last_layer_dnn = nn.Linear(self.hidden_dim // 2 + pos_dim, num_classes)
+        self.lower_dimension_last = nn.Linear(hidden_dim, output_dim)
         self.hard_loss = torch.Tensor([0])
-        self.headConv = nn.Parameter(torch.zeros(size=(self.args.cluster_heads, 1)))
+        self.headConv = nn.Parameter(torch.zeros(size=(self.cluster_heads, 1)))
         nn.init.xavier_uniform_(self.headConv.data, gain=1.414)
-        self.adjlayer = nn.Linear(max_nodes, args.positional_hiddim)
-        self.wm1 = nn.Linear(args.input_dim, args.hidden_dim)
-        self.wm2 = nn.Linear(args.hidden_dim, self.args.hidden_dim // 2)
+        self.adjlayer = nn.Linear(max_nodes, pos_dim)
+        self.wm1 = nn.Linear(input_dim, hidden_dim)
+        self.wm2 = nn.Linear(hidden_dim, self.hidden_dim // 2)
         self.leakyrelu = nn.LeakyReLU(alpha)
-        self.wm21 = nn.Linear(args.hidden_dim // 2 + args.positional_hiddim,
-                              args.hidden_dim // 2 + args.positional_hiddim)
-        self.xblocklinear = nn.Linear(args.input_dim + args.positional_hiddim, args.input_dim + args.positional_hiddim)
+        self.wm21 = nn.Linear(hidden_dim // 2 + pos_dim,
+                              hidden_dim // 2 + pos_dim)
+        self.xblocklinear = nn.Linear(input_dim + pos_dim, input_dim + pos_dim)
+
+    @property
+    def has_gpu(self) -> bool:
+        return torch.cuda.is_available()
 
     def forward(self, x_node, adj, epoch, graph_sizes, c_layer, master_node_flag):
         self.master_node_flag = master_node_flag
@@ -66,11 +93,10 @@ class GMN(nn.Module):
         if c_layer == 0:
             graph_sizes = torch.LongTensor(graph_sizes)
             # size : same az p
-            aranger = torch.arange(adj.shape[1]).view(1, 1, -1).\
-                repeat(adj.shape[0], self.args.num_centroids[c_layer], 1)
+            aranger = torch.arange(adj.shape[1]).view(1, 1, -1).repeat(adj.shape[0], self.num_centroids[c_layer], 1)
             # size: same az p
-            graph_broad = graph_sizes.view(-1, 1, 1).repeat(1, self.args.num_centroids[c_layer], adj.shape[1])
-            if self.args.cuda:
+            graph_broad = graph_sizes.view(-1, 1, 1).repeat(1, self.num_centroids[c_layer], adj.shape[1])
+            if self.has_gpu:
                 aranger = aranger.to(self.device)
                 graph_broad = graph_broad.to(self.device)
                 self.centroids = self.centroids.to(self.device)
@@ -88,24 +114,24 @@ class GMN(nn.Module):
             return self.centroids, hardening_loss, new_adj, new_feat, points
         else:
             self.centroids.requires_grad = False
-            if (epoch + 1) % self.args.backward_period:
+            if (epoch + 1) % self.backward_period:
                 self.centroids.requires_grad = True
             h_prime = self.last_layer_dnn(torch.mean(h_prime, 1))
             return self.centroids, hardening_loss, new_adj, new_feat, h_prime
 
     def query(self, x_node, adj, cluster_layer_num):
         if cluster_layer_num == 0:
-            x_node = self.leakyrelu(F.dropout(self.wm1(x_node), p=self.args.dropout, training=self.training))
-            x_node = self.leakyrelu(F.dropout(self.wm2(x_node), p=self.args.dropout, training=self.training))
-            adj_feat = self.leakyrelu(F.dropout(self.adjlayer(adj), p=self.args.dropout, training=self.training))
+            x_node = self.leakyrelu(F.dropout(self.wm1(x_node), p=self.dropout, training=self.training))
+            x_node = self.leakyrelu(F.dropout(self.wm2(x_node), p=self.dropout, training=self.training))
+            adj_feat = self.leakyrelu(F.dropout(self.adjlayer(adj), p=self.dropout, training=self.training))
             h_prime = torch.cat((x_node, adj_feat), 2)
         else:
-            h_prime = self.leakyrelu(F.dropout(self.wm21(x_node), p=self.args.dropout, training=self.training))
+            h_prime = self.leakyrelu(F.dropout(self.wm21(x_node), p=self.dropout, training=self.training))
 
         if self.master_node_flag:
             return adj, x_node, self.hard_loss, h_prime
         else:
-            if self.args.batchnorm:
+            if self.batchnorm:
                 h_prime = self.bn2(h_prime.transpose(1, 2)).transpose(1, 2)
             else:
                 h_prime = torch.squeeze(h_prime)
@@ -114,15 +140,15 @@ class GMN(nn.Module):
 
     def cluster_block(self, x, adj, cluster_layer_num):
         """ This function calculates the assignment matrix for keys (batch_centroids) and queries (points) """
-        cumsum = np.cumsum(self.args.num_centroids)
+        cumsum = np.cumsum(self.num_centroids)
         cumsum = np.insert(cumsum, 0, 0)
         batch_centroids = \
             self.centroids[:,
-            cumsum[cluster_layer_num] * (self.args.hidden_dim // 2 + self.args.positional_hiddim):
-            cumsum[cluster_layer_num + 1] * (self.args.hidden_dim // 2 + self.args.positional_hiddim)]
+            cumsum[cluster_layer_num] * (self.hidden_dim // 2 + self.positional_hiddim):
+            cumsum[cluster_layer_num + 1] * (self.hidden_dim // 2 + self.positional_hiddim)]
         batch_centroids = torch.unsqueeze(
-            batch_centroids.view(self.args.cluster_heads, -1,
-                                 (self.args.hidden_dim // 2 + self.args.positional_hiddim)), 0).\
+            batch_centroids.view(self.cluster_heads, -1,
+                                 (self.hidden_dim // 2 + self.positional_hiddim)), 0).\
             repeat(x.shape[0], 1, 1, 1)
 
         # size: [batch_szie, centers, graphsize, feat]
@@ -131,13 +157,13 @@ class GMN(nn.Module):
         points = torch.unsqueeze(points, 2).repeat(1, 1, batch_centroids.shape[2], 1, 1)
         # same size az points
         batch_centroids_broad = torch.unsqueeze(batch_centroids, 3).repeat(1, 1, 1, points.shape[3], 1)
-        if self.args.cuda:
+        if self.has_gpu:
             batch_centroids_broad = batch_centroids_broad.to(self.device)
 
         # size [batch_size, cHeads, centrs, graphsize]
         dist = torch.sum(torch.abs(points - batch_centroids_broad) ** 2, 4)
         if self.mask is not None:
-            self.mask_broad = torch.unsqueeze(self.mask, 1).repeat(1, self.args.cluster_heads, 1, 1)
+            self.mask_broad = torch.unsqueeze(self.mask, 1).repeat(1, self.cluster_heads, 1, 1)
             m = torch.tensor(self.mask_broad, dtype=torch.float32)
             dist = dist * m.to(self.device)
 
@@ -147,16 +173,16 @@ class GMN(nn.Module):
         q = q / denominator  # size: [batch, nHeads, centers, graphsize
 
         if self.mask is not None:
-            self.mask_broad = torch.unsqueeze(self.mask, 1).repeat(1, self.args.cluster_heads, 1, 1)
+            self.mask_broad = torch.unsqueeze(self.mask, 1).repeat(1, self.cluster_heads, 1, 1)
             m = torch.tensor(self.mask_broad, dtype=torch.float32)
             q = q * m.to(self.device)
 
-        if self.args.cluster_heads > 1:
-            if self.args.cHeadsPool == 'mean':
+        if self.cluster_heads > 1:
+            if self.c_heads_pool == 'mean':
                 q = torch.mean(q, 1)
-            elif self.args.cHeadsPool == 'max':
+            elif self.c_heads_pool == 'max':
                 q, _ = torch.max(q, 1)
-            elif self.args.cHeadsPool == 'conv':
+            elif self.c_heads_pool == 'conv':
                 q = q.permute(0, 3, 2, 1)
                 q = torch.matmul(q, self.headConv)
                 q = torch.squeeze(q.permute(0, 3, 2, 1))
@@ -191,7 +217,7 @@ class GMN(nn.Module):
         q_adj = torch.matmul(q, adj)
         new_adj = torch.matmul(q_adj, q.transpose(1, 2))
 
-        if self.args.p2p:
+        if self.p2p:
             if self.master_node_flag:
                 new_adj[:, 0:-1, :] = 0.
             else:
@@ -200,7 +226,7 @@ class GMN(nn.Module):
 
         new_feat = torch.matmul(q, x)
 
-        if self.args.linear_block:
+        if self.linear_block:
             new_feat = torch.relu_(self.xblocklinear(new_feat))
 
         return new_adj, q, new_feat

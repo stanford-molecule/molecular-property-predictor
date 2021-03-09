@@ -11,3 +11,5 @@ tensorboard-logger
 tensorboardX
 urllib3
 zipp
+tqdm
+ogb
