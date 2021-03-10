@@ -22,6 +22,9 @@ class GMN(nn.Module):
             dropout: float,
             batchnorm: bool,
             c_heads_pool: str,
+            p2p: bool,
+            linear_block: bool,
+            backward_period: int,
             prior_centroids=None,
             num_classes: int = 2
     ):
@@ -34,6 +37,9 @@ class GMN(nn.Module):
         self.dropout = dropout
         self.batchnorm = batchnorm
         self.c_heads_pool = c_heads_pool
+        self.p2p = p2p
+        self.linear_block = linear_block
+        self.backward_period = backward_period
 
         self.fc = nn.Linear(hidden_dim, 2)
         self.bn2 = torch.nn.BatchNorm1d(output_dim + pos_dim)

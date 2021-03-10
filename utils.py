@@ -33,4 +33,3 @@ def normalize_adjacency(adj):
     sqrt_deg = np.diag(1.0 / np.sqrt(np.sum(adj, axis=0, dtype=float).squeeze()))
     adj = np.matmul(np.matmul(sqrt_deg, adj), sqrt_deg)
     return adj
-

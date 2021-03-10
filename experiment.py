@@ -264,6 +264,8 @@ class GMNExperiment(Experiment):
             mask_nodes: bool,
             batchnorm: bool,
             c_heads_pool: str,
+            p2p: bool,
+            linear_block: bool,
             debug: bool = False
     ):
         self.data_loader_cls = DataLoaderGMN
@@ -303,7 +305,10 @@ class GMNExperiment(Experiment):
             cluster_heads,
             dropout,
             batchnorm,
-            c_heads_pool
+            c_heads_pool,
+            p2p,
+            linear_block,
+            backward_period
         )
         self.opt1, self.opt2, self.opt3 = self._get_optimizers()
 
@@ -415,6 +420,9 @@ class GMNExperiment(Experiment):
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                 self.opt3.step()
 
+            if self.debug:
+                break
+
         if todo:
             self.model.centroids.requires_grad_(True)
 
@@ -485,8 +493,10 @@ if __name__ == "__main__":
             num_clusteriter=1,
             use_rwr=True,
             mask_nodes=True,
-            batchnorm=True,
+            batchnorm=False,
             c_heads_pool='conv',
-            debug=False,
+            p2p=True,
+            linear_block=False,
+            debug=True,
         )
         exp_gmn.run()
