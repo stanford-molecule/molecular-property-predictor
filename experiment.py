@@ -11,12 +11,11 @@ import numpy as np
 import torch
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 from torch.autograd import Variable
-from torch_geometric.data import DataLoader
 from tqdm import tqdm
 
 from gnn import GNN
 from model import GMN
-from dataset import DataLoaderGMN
+from dataset import DataLoaderGMN, DataLoaderGNN
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -35,20 +34,20 @@ class Experiment:
     DATASET_NAME = "ogbg-molhiv"
     NUM_TASKS = 1
     DEBUG_EPOCHS = 2  # makes for quick debugging
-    DEBUG_VAL_BATCHES = 10
+    DEBUG_BATCHES = 20
 
     def __init__(
-            self,
-            gnn_type: str,
-            dropout: float,
-            num_layers: int,
-            emb_dim: int,
-            epochs: int,
-            lr: float,
-            device: int,
-            batch_size: int,
-            num_workers: int,
-            debug: bool = False,
+        self,
+        gnn_type: str,
+        dropout: float,
+        num_layers: int,
+        emb_dim: int,
+        epochs: int,
+        lr: float,
+        device: int,
+        batch_size: int,
+        num_workers: int,
+        debug: bool = False,
     ):
         self.param_gnn_type = gnn_type
         self.param_dropout = dropout
@@ -126,6 +125,10 @@ class Experiment:
         logger.info(f"Best test  : {self.test_curve[best_val_epoch]}")
         self._store_results()
 
+    @property
+    def max_nodes(self):
+        return max(len(x.x) for x in self.dataset)
+
     def _store_results(self) -> None:
         """
         Stores all the curves and experiment parameters in a pickle file.
@@ -164,14 +167,15 @@ class Experiment:
         batch_size: int,
         shuffle: bool,
         num_workers: int,
-    ) -> DataLoader:
+    ) -> DataLoaderGNN:
         dataset_split = dataset[split_idx[data_split]]
-        data_loader_cls = getattr(self, 'data_loader_cls', DataLoader)
+        data_loader_cls = getattr(self, "data_loader_cls", DataLoaderGNN)
         return data_loader_cls(
             dataset_split,
             batch_size=batch_size,
             shuffle=shuffle,
             num_workers=num_workers,
+            max_nodes=self.max_nodes,
         )
 
     def _train(self) -> float:
@@ -227,46 +231,48 @@ class Experiment:
             self.model.eval()
 
             for idx, batch in enumerate(tqdm(self.loaders[data_split], desc=tqdm_desc)):
-                y_true, y_pred = self._eval_batch(batch, y_true, y_pred)
-                if self.debug and idx + 1 >= self.DEBUG_VAL_BATCHES:
-                    break
+                # TODO: fix the 0-d tensor case
+                if len(batch["label"].size()) > 0:
+                    y_true, y_pred = self._eval_batch(batch, y_true, y_pred)
+                    if self.debug and idx + 1 >= self.DEBUG_BATCHES:
+                        break
 
         return self.__eval(y_true, y_pred)
 
 
 class GMNExperiment(Experiment):
     def __init__(
-            self,
-            dropout: float,
-            num_layers: int,
-            emb_dim: int,
-            epochs: int,
-            lr: float,
-            device: int,
-            batch_size: int,
-            num_workers: int,
-            alpha: float,
-            e_out: int,
-            input_dim: int,
-            hidden_dim: int,
-            output_dim: int,
-            pos_dim: int,
-            num_centroids: List[int],
-            weight_decay: float,
-            decay_step: int,
-            cluster_heads: int,
-            learn_centroid: str,
-            backward_period: int,
-            clip: float,
-            avg_grad: bool,
-            num_clusteriter: int,
-            use_rwr: bool,
-            mask_nodes: bool,
-            batchnorm: bool,
-            c_heads_pool: str,
-            p2p: bool,
-            linear_block: bool,
-            debug: bool = False
+        self,
+        dropout: float,
+        num_layers: int,
+        emb_dim: int,
+        epochs: int,
+        lr: float,
+        device: int,
+        batch_size: int,
+        num_workers: int,
+        alpha: float,
+        e_out: int,
+        input_dim: int,
+        hidden_dim: int,
+        output_dim: int,
+        pos_dim: int,
+        num_centroids: List[int],
+        weight_decay: float,
+        decay_step: int,
+        cluster_heads: int,
+        learn_centroid: str,
+        backward_period: int,
+        clip: float,
+        avg_grad: bool,
+        num_clusteriter: int,
+        use_rwr: bool,
+        mask_nodes: bool,
+        batchnorm: bool,
+        c_heads_pool: str,
+        p2p: bool,
+        linear_block: bool,
+        debug: bool = False,
     ):
         self.data_loader_cls = DataLoaderGMN
         super().__init__(
@@ -279,7 +285,7 @@ class GMNExperiment(Experiment):
             device,
             batch_size,
             num_workers,
-            debug
+            debug,
         )
         self.num_centroids = num_centroids
         self.weight_decay = weight_decay
@@ -308,13 +314,9 @@ class GMNExperiment(Experiment):
             c_heads_pool,
             p2p,
             linear_block,
-            backward_period
+            backward_period,
         )
         self.opt1, self.opt2, self.opt3 = self._get_optimizers()
-
-    @property
-    def max_nodes(self):
-        return max(len(x.x) for x in self.dataset)
 
     def _get_optimizers(self):
         param_dict = [
@@ -392,17 +394,17 @@ class GMNExperiment(Experiment):
         loss = 0
         batch_cnt = 0
         todo = (  # TODO: what is this condition?
-                self.epoch > 0
-                and self.epoch % self.backward_period == 1
-                and len(self.num_centroids) > 1
-                and self.learn_centroid is not "f"
+            self.epoch > 0
+            and self.epoch % self.backward_period == 1
+            and len(self.num_centroids) > 1
+            and self.learn_centroid is not "f"
         )
 
         if self.epoch > 0 and self.epoch % self.decay_step == 0:
             self._adjust_lr()
 
         # TODO: enhance data loader to support this
-        for batch in tqdm(self.loaders["train"], desc="Training"):
+        for idx, batch in enumerate(tqdm(self.loaders["train"], desc="Training")):
             batch_cnt += 1
             h_prime, label, hard_loss = self._compute(batch, is_train=True)
             preds = torch.squeeze(h_prime)
@@ -420,7 +422,7 @@ class GMNExperiment(Experiment):
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                 self.opt3.step()
 
-            if self.debug:
+            if self.debug and idx >= self.DEBUG_BATCHES:
                 break
 
         if todo:
@@ -443,10 +445,11 @@ class GMNExperiment(Experiment):
 
     def _eval_batch(self, batch, y_true, y_pred):
         h_prime, label, _ = self._compute(batch, is_train=False)
-        preds = torch.squeeze(h_prime)
+        # preds = torch.squeeze(h_prime)
+        preds = h_prime
         scores, _ = torch.max(preds, dim=1)
-        y_true.append(label.detach().cpu())
-        y_pred.append(scores.detach().cpu())
+        y_true.append(label.unsqueeze(dim=-1).detach().cpu())
+        y_pred.append(scores.unsqueeze(dim=-1).detach().cpu())
         return y_true, y_pred
 
 
@@ -468,35 +471,35 @@ if __name__ == "__main__":
         exp.run()
     else:
         exp_gmn = GMNExperiment(
-            dropout=.5,
+            dropout=0.5,
             num_layers=5,
             emb_dim=10,
-            epochs=2,
+            epochs=100,
             lr=2e-3,
             device=0,
             batch_size=16,
             num_workers=0,
-            alpha=.2,
+            alpha=0.2,
             e_out=1,
             input_dim=9,  # TODO set this using the dataset
             hidden_dim=64,
             output_dim=9,  # TODO should we play with this?
             pos_dim=16,
             num_centroids=[10, 1],
-            weight_decay=.5,
+            weight_decay=0.5,
             decay_step=400,
             cluster_heads=5,
-            learn_centroid='a',
+            learn_centroid="a",
             backward_period=5,
             clip=2,
             avg_grad=True,
             num_clusteriter=1,
-            use_rwr=True,
+            use_rwr=False,
             mask_nodes=True,
             batchnorm=False,
-            c_heads_pool='conv',
+            c_heads_pool="conv",
             p2p=True,
             linear_block=False,
-            debug=True,
+            debug=False,
         )
         exp_gmn.run()
