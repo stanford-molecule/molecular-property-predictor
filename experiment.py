@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-class Experiment:
+class GNNExperiment:
     """
     Run a single experiment (i.e. train and then evaluate on train/test/validation splits)
     given the provided parameters, and store in a pickle file for analysis.
@@ -92,11 +92,7 @@ class Experiment:
         self.epoch = None
 
     def _init_wandb(self):
-        wandb.init(project=self.PROJECT_NAME, config={
-            k: v
-            for k, v in self.__dict__.items()
-            if k.startswith('param_')
-        })
+        wandb.init(project=self.PROJECT_NAME, config=self.params)
 
     def run(self):
         """
@@ -163,7 +159,7 @@ class Experiment:
 
     @property
     def params(self) -> Dict:
-        return {k: v for k, v in self.__dict__.items() if k.startswith("param_")}
+        return {k.replace('param_', ''): v for k, v in self.__dict__.items() if k.startswith("param_")}
 
     def _get_model(self) -> GNN:
         gnn_partial = partial(
@@ -248,16 +244,16 @@ class Experiment:
             self.model.eval()
 
             for idx, batch in enumerate(tqdm(self.loaders[data_split], desc=tqdm_desc)):
-                # TODO: fix the 0-d tensor case
-                if len(batch["label"].size()) > 0:
-                    y_true, y_pred = self._eval_batch(batch, y_true, y_pred)
-                    if self.debug and idx + 1 >= self.DEBUG_BATCHES:
-                        break
+                # TODO: fix the 0-d tensor case for GMN
+                # if len(batch["label"].size()) > 0:
+                y_true, y_pred = self._eval_batch(batch, y_true, y_pred)
+                if self.debug and idx + 1 >= self.DEBUG_BATCHES:
+                    break
 
         return self.__eval(y_true, y_pred)
 
 
-class GMNExperiment(Experiment):
+class GMNExperiment(GNNExperiment):
     def __init__(
         self,
         dropout: float,
@@ -472,7 +468,7 @@ class GMNExperiment(Experiment):
         return y_true, y_pred
 
 
-class GMNExperimentRethink(Experiment):
+class GMNExperimentRethink(GNNExperiment):
     def __init__(
         self,
         dropout: float,
@@ -510,9 +506,14 @@ class GMNExperimentRethink(Experiment):
         from torch.optim.lr_scheduler import ReduceLROnPlateau
         from gmn.GMN import GMN
 
-        self.kl_period = kl_period
-        self.variant = variant
-        self.early_stop_patience = early_stop_patience
+        self.param_kl_period = kl_period
+        self.param_variant = variant
+        self.param_early_stop_patience = early_stop_patience
+        self.param_heads = num_heads
+        self.param_hidden_dim = hidden_dim
+        self.param_num_keys = num_keys
+        self.param_mem_hidden_dim = mem_hidden_dim
+        self.param_variant = variant
 
         self.epochs_no_improve = 0
         self.epoch_stop = self.DEBUG_BATCHES if self.debug else None
@@ -553,7 +554,7 @@ class GMNExperimentRethink(Experiment):
 
     @property
     def stop_early(self) -> bool:
-        if self.epochs_no_improve >= self.early_stop_patience:
+        if self.epochs_no_improve >= self.param_early_stop_patience:
             logging.info("Hit early stopping!")
             return True
         return False
@@ -563,7 +564,7 @@ class GMNExperimentRethink(Experiment):
 
         trainer = (
             kl_train
-            if self.epoch % self.kl_period == 0 and self.variant == "gmn"
+            if self.epoch % self.param_kl_period == 0 and self.param_variant == "gmn"
             else train
         )
         train_sup_loss, train_kl_loss = trainer(
@@ -603,75 +604,24 @@ class GMNExperimentRethink(Experiment):
 
 
 if __name__ == "__main__":
-    which = "rethink"  # or gnn or gmn
-    if which == "gnn":
-        exp = Experiment(
-            gnn_type="gin",
-            dropout=0.5,
-            num_layers=5,
-            emb_dim=300,
-            epochs=100,
-            lr=1e-3,
-            device=0,
-            batch_size=32,
-            num_workers=0,  # everything in the main process
-            debug=True,
-        )
-    elif which == "gmn":
-        exp = GMNExperiment(
-            dropout=0.5,
-            num_layers=5,
-            emb_dim=10,
-            epochs=100,
-            lr=2e-3,
-            device=0,
-            batch_size=16,
-            num_workers=0,
-            alpha=0.2,
-            e_out=1,
-            input_dim=9,  # TODO set this using the dataset
-            hidden_dim=64,
-            output_dim=9,  # TODO should we play with this?
-            pos_dim=16,
-            num_centroids=[10, 1],
-            weight_decay=0.5,
-            decay_step=400,
-            cluster_heads=5,
-            learn_centroid="a",
-            backward_period=5,
-            clip=2,
-            avg_grad=True,
-            num_clusteriter=1,
-            use_rwr=False,
-            mask_nodes=True,
-            batchnorm=False,
-            c_heads_pool="conv",
-            p2p=True,
-            linear_block=False,
-            debug=False,
-        )
-    elif which == "rethink":
-        exp = GMNExperimentRethink(
-            dropout=0.5,
-            num_layers=5,
-            emb_dim=300,
-            epochs=1000,
-            lr=1e-3,
-            device=0,
-            batch_size=64,
-            num_workers=0,  # everything in the main process
-            num_heads=5,
-            hidden_dim=64,
-            num_keys=[32, 1],
-            mem_hidden_dim=16,
-            variant="gmn",
-            lr_decay_patience=10,
-            kl_period=5,
-            early_stop_patience=50,
-            debug=False,
-        )
-    else:
-        raise ValueError("experiment type not defined!")
+    exp = GMNExperimentRethink(
+        dropout=0.5,
+        num_layers=5,
+        emb_dim=300,
+        epochs=1000,
+        lr=1e-3,
+        device=0,
+        batch_size=32,
+        num_workers=0,  # everything in the main process
+        num_heads=5,
+        hidden_dim=64,
+        num_keys=[32, 1],
+        mem_hidden_dim=16,
+        variant="distance",
+        lr_decay_patience=10,
+        kl_period=5,
+        early_stop_patience=50,
+        debug=True,
+    )
 
     exp.run()
-    wandb.finish()

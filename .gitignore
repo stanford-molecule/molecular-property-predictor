@@ -1,7 +1,6 @@
 # Repo-specific identifiers
 logs
-data/**
-data/*
+data
 
 
 # Byte-compiled / optimized / DLL files
@@ -145,3 +144,5 @@ cython_debug/
 
 # IDE
 .idea
+
+ogb/dataset

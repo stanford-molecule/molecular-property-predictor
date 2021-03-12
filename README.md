@@ -1,76 +1,34 @@
-## GraphMemoryNet Implementation
+## Molecular Property Predictor
 
-This repo was forked from the official published code base for the GraphMemoryNet. Edits are made to 
-make the code work for our use case (and eventually the OGB dataset format).
-
-## Getting Started
-
-Here are some simple instructions to get the virtual environment working and to train the model on 
-the default ENZYMES dataset. The code depends on an older version of PyTorch. I'll see if we can
-run the code with a newer version so that it will be easier to integrate with OGB / PyTorch Geometric.
-
--Collin
-
-#### Sanity check the code with original dataset
-
-```bash
-conda create -n gmn python=3.7  # 3.6 doesn't play nice with ogb for some reason
-conda activate gmn
-pip install -r requirements.txt
-
-# if you have CUDA/GPU
-pyhon train.py --cuda --num_epochs 5
-
-# if not
-python train.py --no-cuda --num_epochs 5
-```
-
-#### Let's use a more up-to-date version of PyTorch
-
-For our future work using OGB and PyTorch Geometric, we'll probably want a more up-to-date version of PyTorch.
-Luckily, it seems like the code might just work using the latest version of PyTorch. To install these dependencies,
-follow these instructions.
-
+## Setup
 ```bash
 conda create -n ogb python=3.7
 conda activate ogb
 
-
-# PyTorch Geometric often fails to install from pip if you have a CPU-only device 
-# I found this work around works for me.
+# Install PyTorch
 pip install torch
-bash install.sh
 
-# Let's install the rest of the dependencies here
-pip install -r ogb-requirements.txt
+# Install PyTorch Geometric
+bash install-pytorch-geometric.sh
 
-# Great! Hopefully that worked. Let's see if we can run the model code using the molecular dataset
-# Note: we aren't using OGB yet, but it's the same dataset (slightly different format/data loader).
-# Note: traning over this dataset takes considerably longer than the ENZYMES dataset used above.
-
-# if you have CUDA/GPU
-pyhon train.py --cuda --num_epochs 5 --dataset ogbg-mol-hiv_full
-
-# if not
-python train.py --no-cuda --num_epochs 5 --dataset ogbg-mol-hiv_full
+# Install the rest of the dependencies
+pip install -r requirements.txt
 ```
 
-### W&B
-API key:
-```
-8d89301462839af9f22301ae09b544d05c67a41e
-```
+## Running experiments
+All experiments are listed in `run.py`. You can run all the experiments sequentially with:
+```bash
+python run.py
+``` 
 
+Note that that files contains all the arguments that define an experiment. The experiment results are stored in `results/` as pickle files. Also we're using W&B so if you're logged in the experiment will be streamed to W&B.
 
-## Reference
+## Analysis
+see [analysis.ipynb](analysis.ipynb)
 
-```
-@inproceedings{
-Khasahmadi2020Memory-Based,
-title={Memory-Based Graph Networks},
-author={Amir Hosein Khasahmadi and Kaveh Hassani and Parsa Moradi and Leo Lee and Quaid Morris},
-booktitle={International Conference on Learning Representations},
-year={2020},
-url={https://openreview.net/forum?id=r1laNeBYPB}
-}
-```
+## References
+Code is mostly borrowed or heavily inspired by the following:
+- [GraphMemoryNet](https://github.com/amirkhas/GraphMemoryNet)
+- [OGB](http://ogb.stanford.edu/)
+- [https://github.com/AaltoPML/Rethinking-pooling-in-GNNs](https://github.com/AaltoPML/Rethinking-pooling-in-GNNs)
+- [PyTorch Geometric](https://github.com/rusty1s/pytorch_geometric/)
