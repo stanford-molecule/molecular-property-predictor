@@ -121,5 +121,7 @@ experiments = [
 
 if __name__ == "__main__":
     # run experiments sequentially
+    print(f'going to run {len(experiments)} experiments')
     for cls, args, desc in experiments:
+        print(f'running experiment {desc}')
         cls(**args, desc=desc).run()
