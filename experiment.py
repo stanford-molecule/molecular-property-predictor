@@ -119,7 +119,7 @@ class Experiment:
             logger.info(
                 {"Train": train_perf, "Validation": valid_perf, "Test": test_perf}
             )
-            wandb.log({'loss': loss, 'train_acc': train_perf, 'val_acc': valid_perf, 'test_acc': test_perf})
+            wandb.log({'train_loss': loss, 'train_acc': train_perf, 'val_acc': valid_perf, 'test_acc': test_perf})
 
             self.train_curve.append(train_perf)
             self.valid_curve.append(valid_perf)
@@ -668,7 +668,7 @@ if __name__ == "__main__":
             lr_decay_patience=10,
             kl_period=5,
             early_stop_patience=50,
-            debug=False,
+            debug=True,
         )
     else:
         raise ValueError("experiment type not defined!")
