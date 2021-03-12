@@ -647,7 +647,7 @@ if __name__ == "__main__":
             epochs=1000,
             lr=1e-3,
             device=0,
-            batch_size=128,
+            batch_size=64,
             num_workers=0,  # everything in the main process
             num_heads=5,
             hidden_dim=64,
@@ -657,7 +657,7 @@ if __name__ == "__main__":
             lr_decay_patience=10,
             kl_period=5,
             early_stop_patience=50,
-            debug=True,
+            debug=False,
         )
     else:
         raise ValueError("experiment type not defined!")
