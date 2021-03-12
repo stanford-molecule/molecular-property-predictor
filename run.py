@@ -12,7 +12,7 @@ experiments = [
     Experiment(
         exp_cls=GNNExperiment,
         args={
-            'gnn_type': 'gin',
+            'gnn_type': 'gcn',
             'dropout': .5,
             'num_layers': 5,
             'emb_dim': 300,
@@ -21,7 +21,7 @@ experiments = [
             'device': 0,
             'batch_size': 32,
             'num_workers': 0,
-            'debug': True
+            'debug': False
         }
     ),
     Experiment(
@@ -30,7 +30,7 @@ experiments = [
             'dropout': .5,
             'num_layers': 5,
             'emb_dim': 300,
-            'epochs': 30,
+            'epochs': 100,
             'lr': 1e-3,
             'device': 0,
             'batch_size': 32,
@@ -43,7 +43,7 @@ experiments = [
             'lr_decay_patience': 10,
             'kl_period': 5,
             'early_stop_patience': 50,
-            'debug': True
+            'debug': False
         }
     )
 ]

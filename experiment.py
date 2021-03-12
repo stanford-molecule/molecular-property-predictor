@@ -92,7 +92,8 @@ class GNNExperiment:
         self.epoch = None
 
     def _init_wandb(self):
-        wandb.init(project=self.PROJECT_NAME, config=self.params)
+        tags = ['debug'] if self.debug else None
+        wandb.init(project=self.PROJECT_NAME, config=self.params, tags=tags)
 
     def run(self):
         """
