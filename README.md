@@ -55,6 +55,11 @@ pyhon train.py --cuda --num_epochs 5 --dataset ogbg-mol-hiv_full
 python train.py --no-cuda --num_epochs 5 --dataset ogbg-mol-hiv_full
 ```
 
+### W&B
+API key:
+```
+8d89301462839af9f22301ae09b544d05c67a41e
+```
 
 
 ## Reference

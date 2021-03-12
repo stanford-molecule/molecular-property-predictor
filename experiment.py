@@ -12,6 +12,7 @@ import torch
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 from torch.autograd import Variable
 from tqdm import tqdm
+import wandb
 
 from dataset import DataLoaderGMN, DataLoaderGNN
 from gnn import GNN
@@ -31,6 +32,7 @@ class Experiment:
 
     # we'll only be working on `molhiv` for this project
     DATASET_NAME = "ogbg-molhiv"
+    PROJECT_NAME = 'gmn'
     NUM_TASKS = 1
     DEBUG_EPOCHS = 2  # makes for quick debugging
     DEBUG_BATCHES = 20
@@ -89,26 +91,35 @@ class Experiment:
         self.test_curve = []
         self.epoch = None
 
+    def _init_wandb(self):
+        wandb.init(project=self.PROJECT_NAME, config={
+            k: v
+            for k, v in self.__dict__.items()
+            if k.startswith('param_')
+        })
+
     def run(self):
         """
         Run the experiment + store results.
         """
+        self._init_wandb()
 
         self.times["start"] = datetime.now()
         for self.epoch in range(self.param_epochs):
             logger.info("=====Epoch {}".format(self.epoch + 1))
             logger.info("Training...")
-            loss = self._train()
+            loss = float(self._train())
             logger.info(f"Loss: {loss:.4f}")
             self.loss_curve.append(loss)
 
             logger.info("Evaluating...")
-            train_perf = self._eval(data_split="train")
-            valid_perf = self._eval(data_split="valid")
-            test_perf = self._eval(data_split="test")
+            train_perf = float(self._eval(data_split="train"))
+            valid_perf = float(self._eval(data_split="valid"))
+            test_perf = float(self._eval(data_split="test"))
             logger.info(
                 {"Train": train_perf, "Validation": valid_perf, "Test": test_perf}
             )
+            wandb.log({'loss': loss, 'train_acc': train_perf, 'val_acc': valid_perf, 'test_acc': test_perf})
 
             self.train_curve.append(train_perf)
             self.valid_curve.append(valid_perf)
@@ -663,3 +674,4 @@ if __name__ == "__main__":
         raise ValueError("experiment type not defined!")
 
     exp.run()
+    wandb.finish()

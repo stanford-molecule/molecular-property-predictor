@@ -13,3 +13,4 @@ urllib3
 zipp
 tqdm
 ogb
+wandb
