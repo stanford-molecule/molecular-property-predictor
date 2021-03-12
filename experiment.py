@@ -32,7 +32,7 @@ class GNNExperiment:
 
     # we'll only be working on `molhiv` for this project
     DATASET_NAME = "ogbg-molhiv"
-    PROJECT_NAME = 'gmn'
+    PROJECT_NAME = "gmn"
     NUM_TASKS = 1
     DEBUG_EPOCHS = 2  # makes for quick debugging
     DEBUG_BATCHES = 20
@@ -49,6 +49,7 @@ class GNNExperiment:
         batch_size: int,
         num_workers: int,
         debug: bool = False,
+        desc: str = "",
     ):
         self.param_gnn_type = gnn_type
         self.param_dropout = dropout
@@ -59,6 +60,7 @@ class GNNExperiment:
         self.param_lr = lr
         self.num_workers = num_workers
         self.debug = debug
+        self.desc = desc
 
         self.dataset = PygGraphPropPredDataset(self.DATASET_NAME)
         self.eval_metric = self.dataset.eval_metric
@@ -92,8 +94,9 @@ class GNNExperiment:
         self.epoch = None
 
     def _init_wandb(self):
-        tags = ['debug'] if self.debug else None
-        wandb.init(project=self.PROJECT_NAME, config=self.params, tags=tags)
+        tags = ["debug"] if self.debug else None
+        name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
+        wandb.init(project=self.PROJECT_NAME, config=self.params, tags=tags, name=name)
 
     def run(self):
         """
@@ -116,7 +119,14 @@ class GNNExperiment:
             logger.info(
                 {"Train": train_perf, "Validation": valid_perf, "Test": test_perf}
             )
-            wandb.log({'train_loss': loss, 'train_acc': train_perf, 'val_acc': valid_perf, 'test_acc': test_perf})
+            wandb.log(
+                {
+                    "train_loss": loss,
+                    "train_acc": train_perf,
+                    "val_acc": valid_perf,
+                    "test_acc": test_perf,
+                }
+            )
 
             self.train_curve.append(train_perf)
             self.valid_curve.append(valid_perf)
@@ -161,7 +171,11 @@ class GNNExperiment:
 
     @property
     def params(self) -> Dict:
-        return {k.replace('param_', ''): v for k, v in self.__dict__.items() if k.startswith("param_")}
+        return {
+            k.replace("param_", ""): v
+            for k, v in self.__dict__.items()
+            if k.startswith("param_")
+        }
 
     def _get_model(self) -> GNN:
         gnn_partial = partial(
@@ -288,6 +302,7 @@ class GMNExperiment(GNNExperiment):
         p2p: bool,
         linear_block: bool,
         debug: bool = False,
+        desc: str = "",
     ):
         self.data_loader_cls = DataLoaderGMN
         super().__init__(
@@ -301,6 +316,7 @@ class GMNExperiment(GNNExperiment):
             batch_size,
             num_workers,
             debug,
+            desc,
         )
         from model import GMN
 
@@ -490,6 +506,7 @@ class GMNExperimentRethink(GNNExperiment):
         kl_period: int,
         early_stop_patience: int,
         debug: bool = False,
+        desc: str = "",
     ):
         super().__init__(
             "gmn-rethink",
@@ -502,6 +519,7 @@ class GMNExperimentRethink(GNNExperiment):
             batch_size,
             num_workers,
             debug,
+            desc,
         )
         from data.datasets import get_data
         from torch.optim import Adam
