@@ -668,7 +668,7 @@ if __name__ == "__main__":
             lr_decay_patience=10,
             kl_period=5,
             early_stop_patience=50,
-            debug=True,
+            debug=False,
         )
     else:
         raise ValueError("experiment type not defined!")
