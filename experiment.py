@@ -134,6 +134,7 @@ class GNNExperiment:
         logger.info(f"Best valid : {self.valid_curve[best_val_epoch]}")
         logger.info(f"Best test  : {self.test_curve[best_val_epoch]}")
         self._store_results()
+        wandb.finish()
 
     @property
     def stop_early(self) -> bool:
