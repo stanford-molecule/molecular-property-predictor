@@ -7,6 +7,7 @@ class Experiment(NamedTuple):
     exp_cls: Type[GNNExperiment]
     args: dict
     desc: str  # short description of the experiment that'll show up in W&B as the experiment name
+    skip: bool
 
 
 epochs = (
@@ -31,6 +32,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN",
+        skip=True,
     ),
     Experiment(
         exp_cls=GNNExperiment,
@@ -47,6 +49,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GIN",
+        skip=True,
     ),
     Experiment(
         exp_cls=GMNExperimentRethink,
@@ -70,6 +73,7 @@ experiments = [
             "debug": debug,
         },
         desc="distance GMN",
+        skip=True,
     ),
     Experiment(
         exp_cls=GMNExperimentRethink,
@@ -93,6 +97,7 @@ experiments = [
             "debug": debug,
         },
         desc="random GMN",
+        skip=True,
     ),
     Experiment(
         exp_cls=GMNExperimentRethink,
@@ -116,6 +121,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GMN",
+        skip=True,
     ),
     Experiment(
         exp_cls=GNNExperiment,
@@ -132,6 +138,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN hidden dim=100",
+        skip=True,
     ),
     Experiment(
         exp_cls=GNNExperiment,
@@ -148,6 +155,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN num_layers=3",
+        skip=True,
     ),
     Experiment(
         exp_cls=GNNExperiment,
@@ -164,13 +172,32 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN hidden dim=500",
+        skip=True,
+    ),
+    Experiment(
+        exp_cls=GNNExperiment,
+        args={
+            "gnn_type": "gin",
+            "dropout": 0.5,
+            "num_layers": 5,
+            "emb_dim": 500,
+            "epochs": 100,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": debug,
+        },
+        desc="gin dim=500 epoch=100",
+        skip=False,
     ),
 ]
 
 
 if __name__ == "__main__":
     # run experiments sequentially
-    print(f'going to run {len(experiments)} experiments')
-    for cls, args, desc in experiments:
+    exp = [e for e in experiments if not e.skip]
+    print(f'going to run {len(exp)} experiments')
+    for cls, args, desc in exp:
         print(f'running experiment {desc}')
         cls(**args, desc=desc).run()
