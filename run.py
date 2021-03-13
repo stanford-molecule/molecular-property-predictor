@@ -189,6 +189,23 @@ experiments = [
             "debug": debug,
         },
         desc="gin dim=500 epoch=100",
+        skip=True,
+    ),
+    Experiment(
+        exp_cls=GNNExperiment,
+        args={
+            "gnn_type": "gin",
+            "dropout": 0.5,
+            "num_layers": 10,
+            "emb_dim": 500,
+            "epochs": 100,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": debug,
+        },
+        desc="gin dim=500 epoch=100 10 layers",
         skip=False,
     ),
 ]
