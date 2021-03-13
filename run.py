@@ -206,6 +206,23 @@ experiments = [
             "debug": debug,
         },
         desc="gin dim=500 epoch=100 10 layers",
+        skip=True,
+    ),
+    Experiment(
+        exp_cls=GNNExperiment,
+        args={
+            "gnn_type": "gin",
+            "dropout": 0.5,
+            "num_layers": 3,
+            "emb_dim": 500,
+            "epochs": 100,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": debug,
+        },
+        desc="gin dim=500 epoch=100 3 layers",
         skip=False,
     ),
 ]
@@ -217,7 +234,7 @@ if __name__ == "__main__":
     assert len({e.desc for e in experiments}) == len(
         experiments
     ), "make sure there are no duplicate experiment descriptions"
-    print(f"going to run {len(experiments_to_run)} experiments")
+    print(f"going to run {len(experiments_to_run)} experiments out of a total of {len(experiments)}")
     for cls, args, desc, _ in experiments_to_run:
         print(f"running experiment {desc}")
         cls(**args, desc=desc).run()
