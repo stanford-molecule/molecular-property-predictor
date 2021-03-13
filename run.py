@@ -213,8 +213,11 @@ experiments = [
 
 if __name__ == "__main__":
     # run experiments sequentially
-    exp = [e for e in experiments if not e.skip]
-    print(f'going to run {len(exp)} experiments')
-    for cls, args, desc, _ in exp:
-        print(f'running experiment {desc}')
+    experiments_to_run = [exp for exp in experiments if not exp.skip]
+    assert len({e.desc for e in experiments}) == len(
+        experiments
+    ), "make sure there are no duplicate experiment descriptions"
+    print(f"going to run {len(experiments_to_run)} experiments")
+    for cls, args, desc, _ in experiments_to_run:
+        print(f"running experiment {desc}")
         cls(**args, desc=desc).run()
