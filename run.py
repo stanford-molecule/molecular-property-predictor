@@ -198,6 +198,6 @@ if __name__ == "__main__":
     # run experiments sequentially
     exp = [e for e in experiments if not e.skip]
     print(f'going to run {len(exp)} experiments')
-    for cls, args, desc in exp:
+    for cls, args, desc, _ in exp:
         print(f'running experiment {desc}')
         cls(**args, desc=desc).run()
