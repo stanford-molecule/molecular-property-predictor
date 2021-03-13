@@ -1,15 +1,8 @@
 ## Molecular Property Predictor
 
-## Introduction
-
-This repo was forked from [GraphMemoryNet](https://github.com/amirkhas/GraphMemoryNet).
-
-Edits are made to predict molecule properties.
-
 ## Setup
-
-```sh
-conda create -n ogb python=3.6
+```bash
+conda create -n ogb python=3.7
 conda activate ogb
 
 # Install PyTorch
@@ -22,16 +15,20 @@ bash install-pytorch-geometric.sh
 pip install -r requirements.txt
 ```
 
-## Getting Started
+## Running experiments
+All experiments are listed in `run.py`. You can run all the experiments sequentially with:
+```bash
+python run.py
+``` 
 
-If you have CUDA, run
+Note that that files contains all the arguments that define an experiment. The experiment results are stored in `results/` as pickle files. Also we're using W&B so if you're logged in the experiment will be streamed to W&B.
 
-```sh
-python train.py --cuda --num_epochs 5 --dataset ogbg-mol-hiv_full
-```
+## Analysis
+see [analysis.ipynb](analysis.ipynb)
 
-If not, run
-
-```sh
-python train.py --no-cuda --num_epochs 5 --dataset ogbg-mol-hiv_full
-```
+## References
+Code is mostly borrowed or heavily inspired by the following:
+- [GraphMemoryNet](https://github.com/amirkhas/GraphMemoryNet)
+- [OGB](http://ogb.stanford.edu/)
+- [https://github.com/AaltoPML/Rethinking-pooling-in-GNNs](https://github.com/AaltoPML/Rethinking-pooling-in-GNNs)
+- [PyTorch Geometric](https://github.com/rusty1s/pytorch_geometric/)
