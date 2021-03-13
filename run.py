@@ -12,6 +12,7 @@ class Experiment(NamedTuple):
 epochs = (
     30  # run everything for the same number of epochs so the results are comparable
 )
+batch_size = 32
 debug = False
 
 experiments = [
@@ -115,6 +116,54 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GMN",
+    ),
+    Experiment(
+        exp_cls=GNNExperiment,
+        args={
+            "gnn_type": "gcn",
+            "dropout": 0.5,
+            "num_layers": 5,
+            "emb_dim": 100,
+            "epochs": epochs,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": debug,
+        },
+        desc="vanilla GCN hidden dim=100",
+    ),
+    Experiment(
+        exp_cls=GNNExperiment,
+        args={
+            "gnn_type": "gcn",
+            "dropout": 0.5,
+            "num_layers": 3,
+            "emb_dim": 300,
+            "epochs": epochs,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": debug,
+        },
+        desc="vanilla GCN num_layers=3",
+    ),
+    Experiment(
+        exp_cls=GNNExperiment,
+        args={
+            "gnn_type": "gcn",
+            "dropout": 0.5,
+            "num_layers": 5,
+            "emb_dim": 500,
+            "epochs": epochs,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": debug,
+        },
+        desc="vanilla GCN hidden dim=500",
     ),
 ]
 
