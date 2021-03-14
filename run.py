@@ -346,4 +346,4 @@ if __name__ == "__main__":
     for cls, args, desc, _ in experiments_to_run:
         for idx in range(runs):
             print(f"running experiment {desc} run {idx + 1}")
-            cls(**args, desc=f"desc run={idx + 1}").run()
+            cls(**args, desc=f"{desc} run={idx + 1}").run()
