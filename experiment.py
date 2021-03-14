@@ -94,58 +94,58 @@ class GNNExperiment:
         self.test_curve = []
         self.epoch = None
 
-    def _init_wandb(self):
-        tags = ["debug"] if self.debug else None
-        name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
-        wandb.init(project=self.PROJECT_NAME, config=self.params, tags=tags, name=name)
-
     def run(self):
         """
-        Run the experiment + store results.
+        Initialize W&B
         """
-        self._init_wandb()
+        tags = ["debug"] if self.debug else None
+        name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
+        with wandb.init(project=self.PROJECT_NAME, config=self.params, tags=tags, name=name) as wb:
+            wb.watch(self.model)
 
-        self.times["start"] = datetime.now()
-        for self.epoch in range(self.param_epochs):
-            logger.info("=====Epoch {}".format(self.epoch + 1))
-            logger.info("Training...")
-            loss = float(self._train())
-            logger.info(f"Loss: {loss:.4f}")
-            self.loss_curve.append(loss)
+            """
+            Run the experiment + store results.
+            """
+            self.times["start"] = datetime.now()
+            for self.epoch in range(self.param_epochs):
+                logger.info("=====Epoch {}".format(self.epoch + 1))
+                logger.info("Training...")
+                loss = float(self._train())
+                logger.info(f"Loss: {loss:.4f}")
+                self.loss_curve.append(loss)
 
-            logger.info("Evaluating...")
-            train_perf = float(self._eval(data_split="train"))
-            valid_perf = float(self._eval(data_split="valid"))
-            test_perf = float(self._eval(data_split="test"))
-            logger.info(
-                {"Train": train_perf, "Validation": valid_perf, "Test": test_perf}
-            )
-            wandb.log(
-                {
-                    "train_loss": loss,
-                    "train_acc": train_perf,
-                    "val_acc": valid_perf,
-                    "test_acc": test_perf,
-                }
-            )
+                logger.info("Evaluating...")
+                train_perf = float(self._eval(data_split="train"))
+                valid_perf = float(self._eval(data_split="valid"))
+                test_perf = float(self._eval(data_split="test"))
+                logger.info(
+                    {"Train": train_perf, "Validation": valid_perf, "Test": test_perf}
+                )
+                wb.log(
+                    {
+                        "train_loss": loss,
+                        "train_acc": train_perf,
+                        "val_acc": valid_perf,
+                        "test_acc": test_perf,
+                    }
+                )
 
-            self.train_curve.append(train_perf)
-            self.valid_curve.append(valid_perf)
-            self.test_curve.append(test_perf)
+                self.train_curve.append(train_perf)
+                self.valid_curve.append(valid_perf)
+                self.test_curve.append(test_perf)
 
-            if self.stop_early:
-                break
+                if self.stop_early:
+                    break
 
-        self.times["end"] = datetime.now()
-        best_val_epoch = int(np.array(self.valid_curve).argmax())
-        best_train = max(self.train_curve)
+            self.times["end"] = datetime.now()
+            best_val_epoch = int(np.array(self.valid_curve).argmax())
+            best_train = max(self.train_curve)
 
-        logger.info("All done!")
-        logger.info(f"Best train : {best_train}")
-        logger.info(f"Best valid : {self.valid_curve[best_val_epoch]}")
-        logger.info(f"Best test  : {self.test_curve[best_val_epoch]}")
-        self._store_results()
-        wandb.finish()
+            logger.info("All done!")
+            logger.info(f"Best train : {best_train}")
+            logger.info(f"Best valid : {self.valid_curve[best_val_epoch]}")
+            logger.info(f"Best test  : {self.test_curve[best_val_epoch]}")
+            self._store_results()
 
     @property
     def stop_early(self) -> bool:
