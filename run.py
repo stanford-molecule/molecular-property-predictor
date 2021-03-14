@@ -329,7 +329,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla Deeper GCN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         exp_cls=GNNExperiment,
@@ -346,7 +346,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GIN virtual",
-        skip=False,
+        skip=True,
     ),
     Experiment(
         exp_cls=GNNExperiment,
@@ -363,7 +363,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN virtual",
-        skip=False,
+        skip=True,
     ),
 ]
 

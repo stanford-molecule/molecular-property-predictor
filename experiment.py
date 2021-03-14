@@ -9,15 +9,15 @@ from uuid import uuid4
 
 import numpy as np
 import torch
+import wandb
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 from torch.autograd import Variable
 from tqdm import tqdm
-import wandb
 
+import attacks
+import deeper
 from dataset import DataLoaderGMN, DataLoaderGNN
 from gnn import GNN, GNNFlag
-import deeper
-import attacks
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -231,8 +231,8 @@ class GNNExperiment:
             batch = batch.to(self.device)
 
             if len(batch.x) > 1 and batch.batch[-1] > 0:
-                pred = self.model(batch)
                 self.optimizer.zero_grad()
+                pred = self.model(batch)
                 # ignore nan targets (unlabeled) when computing training loss.
                 is_labeled = batch.y == batch.y
                 loss_tensor = self.loss_fn(
@@ -762,6 +762,23 @@ class DeeperGCNExperiment(GNNExperiment):
         debug: bool = False,
         desc: str = "",
     ):
+        self.param_block = block
+        self.param_conv_encode_edge = conv_encode_edge
+        self.param_add_virtual_node = add_virtual_node
+        self.param_hidden_channels = hidden_channels
+        self.param_conv = conv
+        self.param_gcn_aggr = gcn_aggr
+        self.param_t = t
+        self.param_learn_t = learn_t
+        self.param_p = p
+        self.param_learn_p = learn_p
+        self.param_y = y
+        self.param_learn_y = learn_y
+        self.param_msg_norm = msg_norm
+        self.param_learn_msg_scale = learn_msg_scale
+        self.param_norm = norm
+        self.param_mlp_layers = mlp_layers
+        self.param_graph_pooling = graph_pooling
         super().__init__(
             "deeper-gcn",
             dropout,
@@ -777,27 +794,28 @@ class DeeperGCNExperiment(GNNExperiment):
             desc,
         )
 
-        self.model = deeper.DeeperGCN(
-            num_layers,
-            dropout,
-            block,
-            conv_encode_edge,
-            add_virtual_node,
-            hidden_channels,
-            self.NUM_TASKS,
-            conv,
-            gcn_aggr,
-            t,
-            learn_t,
-            p,
-            learn_p,
-            y,
-            learn_y,
-            msg_norm,
-            learn_msg_scale,
-            norm,
-            mlp_layers,
-            graph_pooling,
+    def _get_model(self):
+        return deeper.DeeperGCN(
+            num_layers=self.param_num_layers,
+            dropout=self.param_dropout,
+            block=self.param_block,
+            conv_encode_edge=self.param_conv_encode_edge,
+            add_virtual_node=self.param_add_virtual_node,
+            hidden_channels=self.param_hidden_channels,
+            num_tasks=self.NUM_TASKS,
+            conv=self.param_conv,
+            gcn_aggr=self.param_gcn_aggr,
+            t=self.param_t,
+            learn_t=self.param_learn_t,
+            p=self.param_p,
+            learn_p=self.param_learn_p,
+            y=self.param_y,
+            learn_y=self.param_learn_y,
+            msg_norm=self.param_msg_norm,
+            learn_msg_scale=self.param_learn_msg_scale,
+            norm=self.param_norm,
+            mlp_layers=self.param_mlp_layers,
+            graph_pooling=self.param_graph_pooling,
         ).to(self.device)
 
 
