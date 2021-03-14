@@ -239,7 +239,7 @@ experiments = [
             "num_workers": 0,
             "debug": debug,
             "m": 3,
-            "step_size": 1e-3
+            "step_size": 1e-3,
         },
         desc="gcn flag",
         skip=False,
@@ -253,7 +253,9 @@ if __name__ == "__main__":
     assert len({e.desc for e in experiments}) == len(
         experiments
     ), "make sure there are no duplicate experiment descriptions"
-    print(f"going to run {len(experiments_to_run)} experiment(s) out of a total of {len(experiments)}")
+    print(
+        f"going to run {len(experiments_to_run)} experiment(s) out of a total of {len(experiments)}"
+    )
     for cls, args, desc, _ in experiments_to_run:
         print(f"running experiment {desc}")
         cls(**args, desc=desc).run()

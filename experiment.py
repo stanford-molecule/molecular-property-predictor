@@ -189,7 +189,8 @@ class GNNExperiment:
             num_layer=self.param_num_layers,
             emb_dim=self.param_emb_dim,
             drop_ratio=self.param_dropout,
-            virtual_node="virtual" in self.param_gnn_type,  # TODO: virtual nodes are broken!
+            virtual_node="virtual"
+            in self.param_gnn_type,  # TODO: virtual nodes are broken!
         )
         return gnn_partial(gnn_type=self.param_gnn_type).to(self.device)
 
@@ -320,12 +321,22 @@ class GNNFLAGExperiment(GNNExperiment):
 
             if len(batch.x) > 1 and batch.batch[-1] > 0:
                 is_labeled = batch.y == batch.y
-                forward = lambda perturb: self.model(batch, perturb).to(torch.float32)[is_labeled]
+                forward = lambda perturb: self.model(batch, perturb).to(torch.float32)[
+                    is_labeled
+                ]
                 model_forward = (self.model, forward)
                 y = batch.y.to(torch.float32)[is_labeled]
                 perturb_shape = (batch.x.shape[0], self.param_emb_dim)
-                loss_tensor, _ = attacks.flag(model_forward, perturb_shape, y,
-                                              self.m, self.step_size, self.optimizer, self.device, self.loss_fn)
+                loss_tensor, _ = attacks.flag(
+                    model_forward,
+                    perturb_shape,
+                    y,
+                    self.m,
+                    self.step_size,
+                    self.optimizer,
+                    self.device,
+                    self.loss_fn,
+                )
                 loss += loss_tensor.item()
             else:
                 raise ValueError("how is this possible???")
