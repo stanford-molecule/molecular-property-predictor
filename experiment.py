@@ -9,14 +9,15 @@ from uuid import uuid4
 
 import numpy as np
 import torch
+import wandb
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 from torch.autograd import Variable
 from tqdm import tqdm
-import wandb
 
+import attacks
+import deeper
 from dataset import DataLoaderGMN, DataLoaderGNN
 from gnn import GNN, GNNFlag
-import attacks
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class GNNExperiment:
         device: int,
         batch_size: int,
         num_workers: int,
+        grad_clip: float = 0.0,
         debug: bool = False,
         desc: str = "",
     ):
@@ -59,6 +61,7 @@ class GNNExperiment:
         self.param_epochs = epochs if not debug else self.DEBUG_EPOCHS
         self.param_batch_size = batch_size
         self.param_lr = lr
+        self.param_grad_clip = grad_clip
         self.num_workers = num_workers
         self.debug = debug
         self.desc = desc
@@ -93,6 +96,10 @@ class GNNExperiment:
         self.valid_curve = []
         self.test_curve = []
         self.epoch = None
+
+    @property
+    def model_param_cnt(self) -> int:
+        return sum(p.numel() for p in self.model.parameters())
 
     def run(self):
         """
@@ -178,11 +185,12 @@ class GNNExperiment:
 
     @property
     def params(self) -> Dict:
-        return {
+        params = {
             k.replace("param_", ""): v
             for k, v in self.__dict__.items()
             if k.startswith("param_")
         }
+        return {**params, **{"model_param_cnt": self.model_param_cnt}}
 
     def _get_model(self) -> GNN:
         gnn_partial = partial(
@@ -191,10 +199,10 @@ class GNNExperiment:
             num_layer=self.param_num_layers,
             emb_dim=self.param_emb_dim,
             drop_ratio=self.param_dropout,
-            virtual_node="virtual"
-            in self.param_gnn_type,  # TODO: virtual nodes are broken!
+            virtual_node="virtual" in self.param_gnn_type,
         )
-        return gnn_partial(gnn_type=self.param_gnn_type).to(self.device)
+        gnn_type = self.param_gnn_type.split("-")[0]
+        return gnn_partial(gnn_type=gnn_type).to(self.device)
 
     def _get_loader(
         self,
@@ -223,8 +231,8 @@ class GNNExperiment:
             batch = batch.to(self.device)
 
             if len(batch.x) > 1 and batch.batch[-1] > 0:
-                pred = self.model(batch)
                 self.optimizer.zero_grad()
+                pred = self.model(batch)
                 # ignore nan targets (unlabeled) when computing training loss.
                 is_labeled = batch.y == batch.y
                 loss_tensor = self.loss_fn(
@@ -233,6 +241,10 @@ class GNNExperiment:
                 )
                 loss += loss_tensor.item()
                 loss_tensor.backward()
+                if self.param_grad_clip > 0:
+                    torch.nn.utils.clip_grad_value_(
+                        self.model.parameters(), self.param_grad_clip
+                    )
                 self.optimizer.step()
             else:
                 raise ValueError("how is this possible???")
@@ -259,6 +271,7 @@ class GNNExperiment:
             y_pred.append(pred.detach().cpu())
         return y_true, y_pred
 
+    @torch.no_grad()
     def _eval(self, data_split: str) -> float:
         y_true = []
         y_pred = []
@@ -268,8 +281,6 @@ class GNNExperiment:
             self.model.eval()
 
             for idx, batch in enumerate(tqdm(self.loaders[data_split], desc=tqdm_desc)):
-                # TODO: fix the 0-d tensor case for GMN
-                # if len(batch["label"].size()) > 0:
                 y_true, y_pred = self._eval_batch(batch, y_true, y_pred)
                 if self.debug and idx + 1 >= self.DEBUG_BATCHES:
                     break
@@ -291,6 +302,7 @@ class GNNFLAGExperiment(GNNExperiment):
         num_workers: int,
         m: int,
         step_size: float,
+        grad_clip: float = 0,
         debug: bool = False,
         desc: str = "",
     ):
@@ -304,6 +316,7 @@ class GNNFLAGExperiment(GNNExperiment):
             device,
             batch_size,
             num_workers,
+            grad_clip,
             debug,
             desc,
         )
@@ -381,6 +394,7 @@ class GMNExperiment(GNNExperiment):
         c_heads_pool: str,
         p2p: bool,
         linear_block: bool,
+        grad_clip: float = 0,
         debug: bool = False,
         desc: str = "",
     ):
@@ -395,6 +409,7 @@ class GMNExperiment(GNNExperiment):
             device,
             batch_size,
             num_workers,
+            grad_clip,
             debug,
             desc,
         )
@@ -588,6 +603,7 @@ class GMNExperimentRethink(GNNExperiment):
         flag: bool = False,
         step_size: float = 1e-3,
         m: int = 3,
+        grad_clip: float = 0,
         debug: bool = False,
         desc: str = "",
     ):
@@ -601,6 +617,7 @@ class GMNExperimentRethink(GNNExperiment):
             device,
             batch_size,
             num_workers,
+            grad_clip,
             debug,
             desc,
         )
@@ -711,6 +728,95 @@ class GMNExperimentRethink(GNNExperiment):
                 self.epochs_no_improve = 0
 
         return acc
+
+
+class DeeperGCNExperiment(GNNExperiment):
+    def __init__(
+        self,
+        dropout: float,
+        num_layers: int,
+        emb_dim: int,
+        epochs: int,
+        lr: float,
+        device: int,
+        batch_size: int,
+        num_workers: int,
+        block: str,
+        conv_encode_edge: bool,
+        add_virtual_node: bool,
+        hidden_channels: int,
+        conv: str,
+        gcn_aggr: str,
+        t: float,
+        learn_t: bool,
+        p: float,
+        learn_p: bool,
+        y: float,
+        learn_y: bool,
+        msg_norm: bool,
+        learn_msg_scale: bool,
+        norm: str,
+        mlp_layers: int,
+        graph_pooling: str,
+        grad_clip: float = 0,
+        debug: bool = False,
+        desc: str = "",
+    ):
+        self.param_block = block
+        self.param_conv_encode_edge = conv_encode_edge
+        self.param_add_virtual_node = add_virtual_node
+        self.param_hidden_channels = hidden_channels
+        self.param_conv = conv
+        self.param_gcn_aggr = gcn_aggr
+        self.param_t = t
+        self.param_learn_t = learn_t
+        self.param_p = p
+        self.param_learn_p = learn_p
+        self.param_y = y
+        self.param_learn_y = learn_y
+        self.param_msg_norm = msg_norm
+        self.param_learn_msg_scale = learn_msg_scale
+        self.param_norm = norm
+        self.param_mlp_layers = mlp_layers
+        self.param_graph_pooling = graph_pooling
+        super().__init__(
+            "deeper-gcn",
+            dropout,
+            num_layers,
+            emb_dim,
+            epochs,
+            lr,
+            device,
+            batch_size,
+            num_workers,
+            grad_clip,
+            debug,
+            desc,
+        )
+
+    def _get_model(self):
+        return deeper.DeeperGCN(
+            num_layers=self.param_num_layers,
+            dropout=self.param_dropout,
+            block=self.param_block,
+            conv_encode_edge=self.param_conv_encode_edge,
+            add_virtual_node=self.param_add_virtual_node,
+            hidden_channels=self.param_hidden_channels,
+            num_tasks=self.NUM_TASKS,
+            conv=self.param_conv,
+            gcn_aggr=self.param_gcn_aggr,
+            t=self.param_t,
+            learn_t=self.param_learn_t,
+            p=self.param_p,
+            learn_p=self.param_learn_p,
+            y=self.param_y,
+            learn_y=self.param_learn_y,
+            msg_norm=self.param_msg_norm,
+            learn_msg_scale=self.param_learn_msg_scale,
+            norm=self.param_norm,
+            mlp_layers=self.param_mlp_layers,
+            graph_pooling=self.param_graph_pooling,
+        ).to(self.device)
 
 
 if __name__ == "__main__":

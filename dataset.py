@@ -32,7 +32,7 @@ class DataLoaderGMN(DataLoaderGNN):
         out = torch.zeros(len(batch_list), max_nodes, max_nodes)
         for idx, g in enumerate(batch_list):
             rwr = torch.tensor(compute_rwr(to_networkx(g)))
-            out[idx, : len(rwr), :len(rwr)] = rwr
+            out[idx, : len(rwr), : len(rwr)] = rwr
         return out
 
     @staticmethod
@@ -40,14 +40,14 @@ class DataLoaderGMN(DataLoaderGNN):
         out = torch.zeros(len(batch_list), max_nodes, max_nodes)
         for idx, g in enumerate(batch_list):
             adj = torch.tensor(nx.to_numpy_matrix(to_networkx(g)))
-            out[idx, :len(adj), :len(adj)] = adj
+            out[idx, : len(adj), : len(adj)] = adj
         return out
 
     @staticmethod
     def _create_feats(batch_list, max_nodes: int, num_features: int):
         out = torch.zeros(len(batch_list), max_nodes, num_features)
         for idx, g in enumerate(batch_list):
-            out[idx, :len(g.x)] = g.x
+            out[idx, : len(g.x)] = g.x
         return out
 
     def __iter__(self):
