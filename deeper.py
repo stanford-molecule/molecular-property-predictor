@@ -45,7 +45,6 @@ class DeeperGCN(torch.nn.Module):
         self.learn_y = learn_y
 
         self.msg_norm = msg_norm
-        learn_msg_scale = learn_msg_scale
 
         print(
             "The number of layers {}".format(self.num_layers),

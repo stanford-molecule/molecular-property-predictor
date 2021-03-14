@@ -199,10 +199,10 @@ class GNNExperiment:
             num_layer=self.param_num_layers,
             emb_dim=self.param_emb_dim,
             drop_ratio=self.param_dropout,
-            virtual_node="virtual"
-            in self.param_gnn_type,  # TODO: virtual nodes are broken!
+            virtual_node="virtual" in self.param_gnn_type,
         )
-        return gnn_partial(gnn_type=self.param_gnn_type).to(self.device)
+        gnn_type = self.param_gnn_type.split("-")[0]
+        return gnn_partial(gnn_type=gnn_type).to(self.device)
 
     def _get_loader(
         self,
@@ -271,6 +271,7 @@ class GNNExperiment:
             y_pred.append(pred.detach().cpu())
         return y_true, y_pred
 
+    @torch.no_grad()
     def _eval(self, data_split: str) -> float:
         y_true = []
         y_pred = []
@@ -280,8 +281,6 @@ class GNNExperiment:
             self.model.eval()
 
             for idx, batch in enumerate(tqdm(self.loaders[data_split], desc=tqdm_desc)):
-                # TODO: fix the 0-d tensor case for GMN
-                # if len(batch["label"].size()) > 0:
                 y_true, y_pred = self._eval_batch(batch, y_true, y_pred)
                 if self.debug and idx + 1 >= self.DEBUG_BATCHES:
                     break
