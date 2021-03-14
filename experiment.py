@@ -15,7 +15,8 @@ from tqdm import tqdm
 import wandb
 
 from dataset import DataLoaderGMN, DataLoaderGNN
-from gnn import GNN
+from gnn import GNN, GNNFlag
+import attacks
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -99,7 +100,9 @@ class GNNExperiment:
         """
         tags = ["debug"] if self.debug else None
         name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
-        with wandb.init(project=self.PROJECT_NAME, config=self.params, tags=tags, name=name) as wb:
+        with wandb.init(
+            project=self.PROJECT_NAME, config=self.params, tags=tags, name=name
+        ) as wb:
             wb.watch(self.model)
 
             """
@@ -151,6 +154,10 @@ class GNNExperiment:
         return False
 
     @property
+    def model_cls(self):
+        return GNN
+
+    @property
     def max_nodes(self):
         return max(len(x.x) for x in self.dataset)
 
@@ -179,12 +186,13 @@ class GNNExperiment:
 
     def _get_model(self) -> GNN:
         gnn_partial = partial(
-            GNN,
+            self.model_cls,
             num_tasks=self.NUM_TASKS,
             num_layer=self.param_num_layers,
             emb_dim=self.param_emb_dim,
             drop_ratio=self.param_dropout,
-            virtual_node="virtual" in self.param_gnn_type,
+            virtual_node="virtual"
+            in self.param_gnn_type,  # TODO: virtual nodes are broken!
         )
         return gnn_partial(gnn_type=self.param_gnn_type).to(self.device)
 
@@ -267,6 +275,78 @@ class GNNExperiment:
                     break
 
         return self.__eval(y_true, y_pred)
+
+
+class GNNFLAGExperiment(GNNExperiment):
+    def __init__(
+        self,
+        gnn_type: str,
+        dropout: float,
+        num_layers: int,
+        emb_dim: int,
+        epochs: int,
+        lr: float,
+        device: int,
+        batch_size: int,
+        num_workers: int,
+        m: int,
+        step_size: float,
+        debug: bool = False,
+        desc: str = "",
+    ):
+        super().__init__(
+            gnn_type,
+            dropout,
+            num_layers,
+            emb_dim,
+            epochs,
+            lr,
+            device,
+            batch_size,
+            num_workers,
+            debug,
+            desc,
+        )
+        self.m = m
+        self.step_size = step_size
+
+    @property
+    def model_cls(self):
+        return GNNFlag
+
+    def _train(self):
+        self.model.train()
+        loss = 0
+
+        for batch in tqdm(self.loaders["train"], desc="Training"):
+            batch = batch.to(self.device)
+
+            if len(batch.x) > 1 and batch.batch[-1] > 0:
+                is_labeled = batch.y == batch.y
+                forward = lambda perturb: self.model(batch, perturb).to(torch.float32)[
+                    is_labeled
+                ]
+                model_forward = (self.model, forward)
+                y = batch.y.to(torch.float32)[is_labeled]
+                perturb_shape = (batch.x.shape[0], self.param_emb_dim)
+                loss_tensor, _ = attacks.flag(
+                    model_forward,
+                    perturb_shape,
+                    y,
+                    self.m,
+                    self.step_size,
+                    self.optimizer,
+                    self.device,
+                    self.loss_fn,
+                )
+                loss += loss_tensor.item()
+            else:
+                raise ValueError("how is this possible???")
+
+            if self.debug:
+                break
+
+        return loss
 
 
 class GMNExperiment(GNNExperiment):
@@ -505,6 +585,9 @@ class GMNExperimentRethink(GNNExperiment):
         lr_decay_patience: int,
         kl_period: int,
         early_stop_patience: int,
+        flag: bool = False,
+        step_size: float = 1e-3,
+        m: int = 3,
         debug: bool = False,
         desc: str = "",
     ):
@@ -534,6 +617,9 @@ class GMNExperimentRethink(GNNExperiment):
         self.param_num_keys = num_keys
         self.param_mem_hidden_dim = mem_hidden_dim
         self.param_variant = variant
+        self.param_flag = flag
+        self.param_step_size = step_size
+        self.param_m = m
 
         self.epochs_no_improve = 0
         self.epoch_stop = self.DEBUG_BATCHES if self.debug else None
@@ -592,7 +678,11 @@ class GMNExperimentRethink(GNNExperiment):
             self.kl_optimizer,
             self.loaders["train"],
             self.device,
+            self.param_hidden_dim,
             self.epoch_stop,
+            self.param_flag,
+            self.param_step_size,
+            self.param_m,
         )
         return train_sup_loss
 

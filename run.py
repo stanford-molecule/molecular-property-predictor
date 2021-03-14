@@ -1,6 +1,6 @@
 from typing import NamedTuple, Type
 
-from experiment import GNNExperiment, GMNExperimentRethink
+from experiment import GNNExperiment, GMNExperimentRethink, GNNFLAGExperiment
 
 
 class Experiment(NamedTuple):
@@ -225,6 +225,71 @@ experiments = [
         desc="gin dim=500 epoch=100 3 layers",
         skip=True,
     ),
+    Experiment(
+        exp_cls=GNNFLAGExperiment,
+        args={
+            "gnn_type": "gcn",
+            "dropout": 0.5,
+            "num_layers": 3,
+            "emb_dim": 300,
+            "epochs": 30,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": debug,
+            "m": 3,
+            "step_size": 1e-3,
+        },
+        desc="gcn flag",
+        skip=True,
+    ),
+    Experiment(
+        exp_cls=GNNFLAGExperiment,
+        args={
+            "gnn_type": "gin",
+            "dropout": 0.5,
+            "num_layers": 3,
+            "emb_dim": 300,
+            "epochs": 30,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": True,
+            "m": 3,
+            "step_size": 1e-3,
+        },
+        desc="gin flag",
+        skip=True,
+    ),
+    Experiment(
+        exp_cls=GMNExperimentRethink,
+        args={
+            "dropout": 0.5,
+            "num_layers": 5,
+            "emb_dim": 300,
+            "epochs": epochs,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": 32,
+            "num_workers": 0,
+            "num_heads": 5,
+            "hidden_dim": 64,
+            "num_keys": [32, 1],
+            "mem_hidden_dim": 16,
+            "variant": "gmn",
+            "lr_decay_patience": 10,
+            "kl_period": 5,
+            "early_stop_patience": 50,
+            "flag": True,
+            "step_size": 1e-3,
+            "m": 3,
+            "debug": debug,
+        },
+        desc="GMN flag",
+        skip=False,
+    ),
 ]
 
 
@@ -234,7 +299,9 @@ if __name__ == "__main__":
     assert len({e.desc for e in experiments}) == len(
         experiments
     ), "make sure there are no duplicate experiment descriptions"
-    print(f"going to run {len(experiments_to_run)} experiment(s) out of a total of {len(experiments)}")
+    print(
+        f"going to run {len(experiments_to_run)} experiment(s) out of a total of {len(experiments)}"
+    )
     for cls, args, desc, _ in experiments_to_run:
         print(f"running experiment {desc}")
         cls(**args, desc=desc).run()
