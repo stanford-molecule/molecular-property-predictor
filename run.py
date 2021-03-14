@@ -1,6 +1,6 @@
 from typing import NamedTuple, Type
 
-from experiment import GNNExperiment, GMNExperimentRethink
+from experiment import GNNExperiment, GMNExperimentRethink, GNNFLAGExperiment
 
 
 class Experiment(NamedTuple):
@@ -224,6 +224,25 @@ experiments = [
         },
         desc="gin dim=500 epoch=100 3 layers",
         skip=True,
+    ),
+    Experiment(
+        exp_cls=GNNFLAGExperiment,
+        args={
+            "gnn_type": "gcn",
+            "dropout": 0.5,
+            "num_layers": 3,
+            "emb_dim": 500,
+            "epochs": 30,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": batch_size,
+            "num_workers": 0,
+            "debug": debug,
+            "m": 3,
+            "step_size": 1e-3
+        },
+        desc="gcn flag",
+        skip=False,
     ),
 ]
 
