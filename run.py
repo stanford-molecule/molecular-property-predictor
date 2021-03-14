@@ -223,7 +223,7 @@ experiments = [
             "debug": debug,
         },
         desc="gin dim=500 epoch=100 3 layers",
-        skip=False,
+        skip=True,
     ),
 ]
 
