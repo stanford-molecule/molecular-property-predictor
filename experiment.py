@@ -100,10 +100,11 @@ class GNNExperiment:
         tags = ["debug"] if self.debug else None
         name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
         with wandb.init(project=self.PROJECT_NAME, config=self.params, tags=tags, name=name) as wb:
+            wb.watch(self.model)
+
             """
             Run the experiment + store results.
             """
-
             self.times["start"] = datetime.now()
             for self.epoch in range(self.param_epochs):
                 logger.info("=====Epoch {}".format(self.epoch + 1))
