@@ -162,11 +162,19 @@ class GNNNodeFlag(torch.nn.Module):
         node representations
     """
 
-    def __init__(self, num_layer, emb_dim, drop_ratio=0.5, JK="last", residual=False, gnn_type='gin'):
-        '''
+    def __init__(
+        self,
+        num_layer,
+        emb_dim,
+        drop_ratio=0.5,
+        JK="last",
+        residual=False,
+        gnn_type="gin",
+    ):
+        """
             emb_dim (int): node embedding dimensionality
             num_layer (int): number of GNN message passing layers
-        '''
+        """
 
         super(GNNNodeFlag, self).__init__()
         self.num_layer = num_layer
@@ -185,20 +193,29 @@ class GNNNodeFlag(torch.nn.Module):
         self.batch_norms = torch.nn.ModuleList()
 
         for layer in range(num_layer):
-            if gnn_type == 'gin':
+            if gnn_type == "gin":
                 self.convs.append(GINConv(emb_dim))
-            elif gnn_type == 'gcn':
+            elif gnn_type == "gcn":
                 self.convs.append(GCNConv(emb_dim))
             else:
-                ValueError('Undefined GNN type called {}'.format(gnn_type))
+                ValueError("Undefined GNN type called {}".format(gnn_type))
 
             self.batch_norms.append(torch.nn.BatchNorm1d(emb_dim))
 
     def forward(self, batched_data, perturb=None):
-        x, edge_index, edge_attr, batch = batched_data.x, batched_data.edge_index, batched_data.edge_attr, batched_data.batch
+        x, edge_index, edge_attr, batch = (
+            batched_data.x,
+            batched_data.edge_index,
+            batched_data.edge_attr,
+            batched_data.batch,
+        )
 
         # computing input node embedding
-        tmp = self.atom_encoder(x) + perturb if perturb is not None else self.atom_encoder(x)
+        tmp = (
+            self.atom_encoder(x) + perturb
+            if perturb is not None
+            else self.atom_encoder(x)
+        )
         h_list = [tmp]
 
         for layer in range(self.num_layer):

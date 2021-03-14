@@ -100,7 +100,9 @@ class GNNExperiment:
         """
         tags = ["debug"] if self.debug else None
         name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
-        with wandb.init(project=self.PROJECT_NAME, config=self.params, tags=tags, name=name) as wb:
+        with wandb.init(
+            project=self.PROJECT_NAME, config=self.params, tags=tags, name=name
+        ) as wb:
             wb.watch(self.model)
 
             """
@@ -583,6 +585,9 @@ class GMNExperimentRethink(GNNExperiment):
         lr_decay_patience: int,
         kl_period: int,
         early_stop_patience: int,
+        flag: bool = False,
+        step_size: float = 1e-3,
+        m: int = 3,
         debug: bool = False,
         desc: str = "",
     ):
@@ -612,6 +617,9 @@ class GMNExperimentRethink(GNNExperiment):
         self.param_num_keys = num_keys
         self.param_mem_hidden_dim = mem_hidden_dim
         self.param_variant = variant
+        self.param_flag = flag
+        self.param_step_size = step_size
+        self.param_m = m
 
         self.epochs_no_improve = 0
         self.epoch_stop = self.DEBUG_BATCHES if self.debug else None
@@ -670,7 +678,11 @@ class GMNExperimentRethink(GNNExperiment):
             self.kl_optimizer,
             self.loaders["train"],
             self.device,
+            self.param_hidden_dim,
             self.epoch_stop,
+            self.param_flag,
+            self.param_step_size,
+            self.param_m,
         )
         return train_sup_loss
 

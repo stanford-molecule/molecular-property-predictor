@@ -126,9 +126,10 @@ class GMN(torch.nn.Module):
 
         self.MLP = nn.Sequential(Linear(mem_hidden_dim, 50), nn.LeakyReLU(), Linear(50, self.num_classes))
 
-    def initial_query(self, x, edge_index, edge_attr=None):
+    def initial_query(self, x, edge_index, edge_attr=None, perturb=None):
         if self.encode_edge:
             x = self.atom_encoder(x)
+            x = x + perturb if perturb is not None else x
             x = self.q0(x, edge_index, edge_attr)
         else:
             x = self.q0(x, edge_index)
@@ -136,9 +137,9 @@ class GMN(torch.nn.Module):
         x = F.relu(self.q1(x, edge_index))
         return x
 
-    def forward(self, x, edge_index, batch, edge_attr):
+    def forward(self, x, edge_index, batch, edge_attr, perturb=None):
 
-        q0 = self.initial_query(x, edge_index, edge_attr)
+        q0 = self.initial_query(x, edge_index, edge_attr, perturb)
 
         q0, mask = to_dense_batch(q0, batch=batch)
 

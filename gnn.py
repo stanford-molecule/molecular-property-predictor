@@ -148,7 +148,5 @@ class GNNFlag(torch.nn.Module):
 
     def forward(self, batched_data, perturb=None):
         h_node = self.gnn_node(batched_data, perturb)
-
         h_graph = self.pool(h_node, batched_data.batch)
-
         return self.graph_pred_linear(h_graph)
