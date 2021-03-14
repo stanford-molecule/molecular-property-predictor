@@ -50,7 +50,7 @@ class GNNExperiment:
         device: int,
         batch_size: int,
         num_workers: int,
-        grad_clip: float,
+        grad_clip: float = 0.0,
         debug: bool = False,
         desc: str = "",
     ):
@@ -799,7 +799,7 @@ class DeeperGCNExperiment(GNNExperiment):
             norm,
             mlp_layers,
             graph_pooling,
-        )
+        ).to(self.device)
 
 
 if __name__ == "__main__":
