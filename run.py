@@ -1,6 +1,11 @@
 from typing import NamedTuple, Type
 
-from experiment import GNNExperiment, GMNExperimentRethink, GNNFLAGExperiment
+from experiment import (
+    GNNExperiment,
+    GMNExperimentRethink,
+    GNNFLAGExperiment,
+    DeeperGCNExperiment,
+)
 
 
 class Experiment(NamedTuple):
@@ -15,6 +20,9 @@ epochs = (
 )
 batch_size = 32
 debug = False
+# eventually needs to be 5 runs per experiment to compute mean/std
+# see https://piazza.com/class/kjjj38qxifm2vx?cid=788
+runs = 1
 
 experiments = [
     Experiment(
@@ -288,6 +296,39 @@ experiments = [
             "debug": debug,
         },
         desc="GMN flag",
+        skip=True,
+    ),
+    Experiment(
+        exp_cls=DeeperGCNExperiment,
+        args={
+            "dropout": 0.5,
+            "num_layers": 5,
+            "emb_dim": 300,
+            "epochs": epochs,
+            "lr": 1e-2,
+            "device": 0,
+            "batch_size": 32,
+            "num_workers": 0,
+            "block": "res+",
+            "conv_encode_edge": False,
+            "add_virtual_node": False,
+            "hidden_channels": 256,
+            "conv": "gen",
+            "gcn_aggr": "max",
+            "t": 1.0,
+            "learn_t": False,
+            "p": 1.0,
+            "learn_p": False,
+            "y": 0.0,
+            "learn_y": False,
+            "msg_norm": False,
+            "learn_msg_scale": False,
+            "norm": "batch",
+            "mlp_layers": 1,
+            "graph_pooling": "mean",
+            "debug": debug,
+        },
+        desc="vanilla Deeper GCN",
         skip=False,
     ),
 ]
@@ -303,5 +344,6 @@ if __name__ == "__main__":
         f"going to run {len(experiments_to_run)} experiment(s) out of a total of {len(experiments)}"
     )
     for cls, args, desc, _ in experiments_to_run:
-        print(f"running experiment {desc}")
-        cls(**args, desc=desc).run()
+        for idx in range(runs):
+            print(f"running experiment {desc} run {idx + 1}")
+            cls(**args, desc=f"desc run={idx + 1}").run()
