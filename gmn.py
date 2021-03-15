@@ -1,16 +1,199 @@
+"""
+GMN.
+"""
+
 from typing import Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from ogb.graphproppred.mol_encoder import AtomEncoder
+from ogb.graphproppred.mol_encoder import BondEncoder
 from torch.nn import LeakyReLU
 from torch.nn import Linear
-from torch_geometric.utils import to_dense_batch
-from torch_geometric.nn import GraphConv
 from torch_geometric.data.batch import Batch
-from utils import GCNConv
-from ogb.graphproppred.mol_encoder import AtomEncoder
+from torch_geometric.nn import GraphConv
+from torch_geometric.nn import MessagePassing
+from torch_geometric.utils import to_dense_batch
+from tqdm import tqdm
+
 import deeper
+
+loss_fn = F.nll_loss
+softmax = F.log_softmax
+
+
+def _flag(model, data, device, y, step_size, m, hidden_dim):
+    """
+    Runs FLAG for a batch.
+    """
+
+    forward = lambda p: model(
+        data.x, data.edge_index, data.batch, data.edge_attr, perturb=p
+    )
+    perturb_shape = (data.x.shape[0], hidden_dim)
+    perturb = (
+        torch.FloatTensor(*perturb_shape).uniform_(-step_size, step_size).to(device)
+    )
+    perturb.requires_grad_()
+    out, kl = forward(perturb)
+    out = softmax(out, dim=-1)
+    loss = loss_fn(out, y, reduction="mean")
+    loss /= m
+    kl /= m
+
+    for _ in range(m - 1):
+        loss.backward()
+        perturb_data = perturb.detach() + step_size * torch.sign(perturb.grad.detach())
+        perturb.data = perturb_data.data
+        perturb.grad[:] = 0
+
+        out, kl = forward(perturb)
+        out = softmax(out, dim=-1)
+        loss = loss_fn(out, y)
+        loss /= m
+        kl /= m
+    return loss, kl
+
+
+def train(
+    model,
+    optimizer,
+    loader,
+    device,
+    hidden_dim,
+    epoch_stop=None,
+    flag: bool = False,
+    step_size: float = 1e-3,
+    m: int = 3,
+):
+    """
+    Train loop for a single epoch. Runs FLAG if `flag == True`.
+    """
+    model.train()
+    total_ce_loss, total_kl_loss = 0, 0
+
+    for idx, data in enumerate(tqdm(loader, desc="Training")):
+        data.to(device)
+        y = data.y.view(-1)
+
+        optimizer.zero_grad()
+        if flag:
+            loss, kl = _flag(model, data, device, y, step_size, m, hidden_dim)
+        else:
+            out, kl = model(data.x, data.edge_index, data.batch, data.edge_attr)
+            out = softmax(out, dim=-1)
+            loss = loss_fn(out, y, reduction="mean")
+
+        loss.backward()
+        optimizer.step()
+
+        total_ce_loss += loss.item() * data.y.size(0)
+        total_kl_loss += kl.item() * data.y.size(0)
+
+        if epoch_stop and idx >= epoch_stop:
+            break
+
+    return total_ce_loss, total_kl_loss
+
+
+def kl_train(
+    model,
+    optimizer,
+    loader,
+    device,
+    hidden_dim,
+    epoch_stop=None,
+    flag: bool = False,
+    step_size: float = 1e-3,
+    m: int = 3,
+):
+    """
+    Run KL train. Not using FLAG here. TODO: does that make sense?
+    """
+    total_kl_loss = 0.0
+    total_ce_loss = 0.0
+
+    optimizer.zero_grad()
+    for idx, data in enumerate(tqdm(loader, desc="KL train")):
+        data.to(device)
+        out, kl = model(data.x, data.edge_index, data.batch, data.edge_attr)
+        out = softmax(out, dim=-1)
+        loss = loss_fn(out, data.y.view(-1), reduction="mean")
+        kl.backward()
+
+        total_kl_loss += kl.item() * data.y.size(0)
+        total_ce_loss += loss.item() * data.y.size(0)
+
+        if epoch_stop and idx >= epoch_stop:
+            break
+
+    optimizer.step()
+
+    return total_ce_loss, total_kl_loss
+
+
+@torch.no_grad()
+def evaluate(model, loader, device, evaluator=None, data_split="", epoch_stop=None):
+    """
+    Evluate GMN given a data split represented by `loader`.
+    """
+    model.eval()
+    loss, kl_loss, correct = 0, 0, 0
+    y_pred, y_true = [], []
+
+    for idx, data in enumerate(tqdm(loader, desc=data_split)):
+        data.to(device)
+        out, kl = model(data.x, data.edge_index, data.batch, data.edge_attr)
+
+        y_pred.append(out[:, 1])
+        y_true.append(data.y)
+
+        out = F.log_softmax(out, dim=-1)
+        pred = out.max(1)[1]
+        correct += pred.eq(data.y.view(-1)).sum().item()
+        loss += F.nll_loss(out, data.y.view(-1), reduction="mean").item() * data.y.size(
+            0
+        )
+        kl_loss += kl.item() * data.y.size(0)
+
+        if epoch_stop and idx >= epoch_stop:
+            break
+
+    y_pred = torch.cat(y_pred, dim=0)
+    y_true = torch.cat(y_true, dim=0)
+
+    if evaluator is None:
+        acc = correct / len(loader.dataset)
+    else:
+        acc = evaluator.eval({"y_pred": y_pred.view(y_true.shape), "y_true": y_true})[
+            evaluator.eval_metric
+        ]
+
+    return acc, loss, kl_loss
+
+
+# code taken from https://github.com/snap-stanford/ogb/blob/master/examples/graphproppred/mol/conv.py
+class GCNConv(MessagePassing):
+    def __init__(self, emb_dim, aggr):
+        super(GCNConv, self).__init__(aggr=aggr)
+
+        self.linear = torch.nn.Linear(emb_dim, emb_dim)
+        self.root_emb = torch.nn.Embedding(1, emb_dim)
+        self.bond_encoder = BondEncoder(emb_dim=emb_dim)
+
+    def forward(self, x, edge_index, edge_attr):
+        x = self.linear(x)
+        edge_embedding = self.bond_encoder(edge_attr)
+        return self.propagate(edge_index, x=x, edge_attr=edge_embedding) + F.relu(
+            x + self.root_emb.weight
+        )
+
+    def message(self, x_j, edge_attr):
+        return F.relu(x_j + edge_attr)
+
+    def update(self, aggr_out):
+        return aggr_out
 
 
 class MemConv(nn.Module):

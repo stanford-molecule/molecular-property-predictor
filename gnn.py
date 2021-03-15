@@ -1,3 +1,7 @@
+"""
+Directly taken from OGB for computing baselines.
+"""
+
 import torch
 from torch_geometric.nn import (
     global_add_pool,

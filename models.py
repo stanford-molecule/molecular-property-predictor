@@ -1,3 +1,8 @@
+"""
+Contains the logic for training and evaluating different models.
+"""
+
+import abc
 import logging
 import pickle
 from datetime import datetime
@@ -10,24 +15,21 @@ import numpy as np
 import torch
 import wandb
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
+from torch_geometric.data import DataLoader
 from tqdm import tqdm
 
 import attacks
 import deeper
-from dataset import DataLoaderGNN
 from gnn import GNN, GNNFlag
+import gmn
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-class ExperimentGNNBaseline:
+class GraphNeuralNetwork(abc.ABC):
     """
-    Run a single experiment (i.e. train and then evaluate on train/test/validation splits)
-    given the provided parameters, and store in a pickle file for analysis.
-
-    Most of the code is either copied from https://github.com/snap-stanford/ogb or heavily inspired by it.
-    TODO: create a factory method to switch between GMN and normal
+    Abstract base class for GNNs.
     """
 
     # we'll only be working on `molhiv` for this project
@@ -99,9 +101,15 @@ class ExperimentGNNBaseline:
     def model_param_cnt(self) -> int:
         return sum(p.numel() for p in self.model.parameters())
 
+    @property
+    @abc.abstractmethod
+    def model_cls(self):
+        pass
+
     def run(self):
         """
-        Initialize W&B
+        For each epoch train and then evaluate across all data splits.
+        We're using W&B to track experiments.
         """
         tags = ["debug"] if self.debug else None
         name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
@@ -110,9 +118,6 @@ class ExperimentGNNBaseline:
         ) as wb:
             wb.watch(self.model)
 
-            """
-            Run the experiment + store results.
-            """
             self.times["start"] = datetime.now()
             for self.epoch in range(self.param_epochs):
                 logger.info("=====Epoch {}".format(self.epoch + 1))
@@ -158,14 +163,6 @@ class ExperimentGNNBaseline:
     def stop_early(self) -> bool:
         return False
 
-    @property
-    def model_cls(self):
-        return GNN
-
-    @property
-    def max_nodes(self):
-        return max(len(x.x) for x in self.dataset)
-
     def _store_results(self) -> None:
         """
         Stores all the curves and experiment parameters in a pickle file.
@@ -183,6 +180,10 @@ class ExperimentGNNBaseline:
 
     @property
     def params(self) -> Dict:
+        """
+        Collects all `param_*` parameters which are considered hyper-params.
+        Also adds the total number of model parameters.
+        """
         params = {
             k.replace("param_", ""): v
             for k, v in self.__dict__.items()
@@ -190,7 +191,7 @@ class ExperimentGNNBaseline:
         }
         return {**params, **{"model_param_cnt": self.model_param_cnt}}
 
-    def _get_model(self) -> GNN:
+    def _get_model(self):
         gnn_partial = partial(
             self.model_cls,
             num_tasks=self.NUM_TASKS,
@@ -202,30 +203,114 @@ class ExperimentGNNBaseline:
         gnn_type = self.param_gnn_type.split("-")[0]
         return gnn_partial(gnn_type=gnn_type).to(self.device)
 
+    @staticmethod
     def _get_loader(
-        self,
         dataset: PygGraphPropPredDataset,
         split_idx: Dict[str, torch.Tensor],
         data_split: str,
         batch_size: int,
         shuffle: bool,
         num_workers: int,
-    ) -> DataLoaderGNN:
+    ) -> DataLoader:
+        """
+        Instantiates a data loader given the provided params.
+        """
         dataset_split = dataset[split_idx[data_split]]
-        data_loader_cls = getattr(self, "data_loader_cls", DataLoaderGNN)
-        return data_loader_cls(
+        return DataLoader(
             dataset_split,
             batch_size=batch_size,
             shuffle=shuffle,
             num_workers=num_workers,
-            max_nodes=self.max_nodes,
         )
+
+    def _eval_batch(self, batch, y_true, y_pred):
+        """
+        Logic to generate predictions for a single batch of data and to append to previous values.
+        """
+        batch = batch.to(self.device)
+
+        if len(batch.x) > 1:
+            with torch.no_grad():
+                pred = self.model(batch)
+
+            y_true.append(batch.y.view(pred.shape).detach().cpu())
+            y_pred.append(pred.detach().cpu())
+        return y_true, y_pred
+
+    def _compute_eval(
+        self, y_true: List[torch.Tensor], y_pred: List[torch.Tensor]
+    ) -> float:
+        """
+        Logic to compute evaluation metric given parallel lists of true and predicted values.
+        """
+        y_true = torch.cat(y_true, dim=0).numpy()
+        y_pred = torch.cat(y_pred, dim=0).numpy()
+        input_dict = {"y_true": y_true, "y_pred": y_pred}
+        return self.evaluator.eval(input_dict)[self.eval_metric]
+
+    @abc.abstractmethod
+    def _train(self) -> float:
+        """
+        Training logic for a single epoch.
+        """
+        pass
+
+    @abc.abstractmethod
+    def _eval(self, data_split: str) -> float:
+        """
+        Evaluate a single split of data (i.e. train/validation/test).
+        """
+        pass
+
+
+class GNNBaseline(GraphNeuralNetwork):
+    """
+    Code for running GNN baselines as defined in the OGB paper.
+    Most of the code is either copied from https://github.com/snap-stanford/ogb or heavily inspired by it.
+
+    Runs a single experiment (i.e. train and then evaluate on train/test/validation splits)
+    given the provided parameters, and store in a pickle file for analysis.
+    """
+
+    def __init__(
+        self,
+        gnn_type: str,
+        dropout: float,
+        num_layers: int,
+        emb_dim: int,
+        epochs: int,
+        lr: float,
+        device: int,
+        batch_size: int,
+        num_workers: int,
+        grad_clip: float = 0.0,
+        debug: bool = False,
+        desc: str = "",
+    ):
+        super().__init__(
+            gnn_type,
+            dropout,
+            num_layers,
+            emb_dim,
+            epochs,
+            lr,
+            device,
+            batch_size,
+            num_workers,
+            grad_clip,
+            debug,
+            desc,
+        )
+
+    @property
+    def model_cls(self):
+        return GNN
 
     def _train(self) -> float:
         self.model.train()
         loss = 0
 
-        for batch in tqdm(self.loaders["train"], desc="Training"):
+        for idx, batch in enumerate(tqdm(self.loaders["train"], desc="Training")):
             batch = batch.to(self.device)
 
             if len(batch.x) > 1 and batch.batch[-1] > 0:
@@ -247,27 +332,10 @@ class ExperimentGNNBaseline:
             else:
                 raise ValueError("how is this possible???")
 
-            if self.debug:
+            if self.debug and idx >= self.DEBUG_BATCHES:
                 break
 
         return loss
-
-    def __eval(self, y_true, y_pred):
-        y_true = torch.cat(y_true, dim=0).numpy()
-        y_pred = torch.cat(y_pred, dim=0).numpy()
-        input_dict = {"y_true": y_true, "y_pred": y_pred}
-        return self.evaluator.eval(input_dict)[self.eval_metric]
-
-    def _eval_batch(self, batch, y_true, y_pred):
-        batch = batch.to(self.device)
-
-        if len(batch.x) > 1:
-            with torch.no_grad():
-                pred = self.model(batch)
-
-            y_true.append(batch.y.view(pred.shape).detach().cpu())
-            y_pred.append(pred.detach().cpu())
-        return y_true, y_pred
 
     @torch.no_grad()
     def _eval(self, data_split: str) -> float:
@@ -280,13 +348,18 @@ class ExperimentGNNBaseline:
 
             for idx, batch in enumerate(tqdm(self.loaders[data_split], desc=tqdm_desc)):
                 y_true, y_pred = self._eval_batch(batch, y_true, y_pred)
-                if self.debug and idx + 1 >= self.DEBUG_BATCHES:
+                if self.debug and idx >= self.DEBUG_BATCHES:
                     break
 
-        return self.__eval(y_true, y_pred)
+        return self._compute_eval(y_true, y_pred)
 
 
-class ExperimentGNNFLAG(ExperimentGNNBaseline):
+class GNNFLAG(GNNBaseline):
+    """
+    Adds FLAG to GNNs training loop.
+    https://github.com/devnkong/FLAG/tree/main/ogb/graphproppred/mol
+    """
+
     def __init__(
         self,
         gnn_type: str,
@@ -329,7 +402,7 @@ class ExperimentGNNFLAG(ExperimentGNNBaseline):
         self.model.train()
         loss = 0
 
-        for batch in tqdm(self.loaders["train"], desc="Training"):
+        for idx, batch in enumerate(tqdm(self.loaders["train"], desc="Training")):
             batch = batch.to(self.device)
 
             if len(batch.x) > 1 and batch.batch[-1] > 0:
@@ -354,13 +427,21 @@ class ExperimentGNNFLAG(ExperimentGNNBaseline):
             else:
                 raise ValueError("how is this possible???")
 
-            if self.debug:
+            if self.debug and idx >= self.DEBUG_BATCHES:
                 break
 
         return loss
 
 
-class ExperimentGMN(ExperimentGNNBaseline):
+class GraphMemoryNetwork(GNNBaseline):
+    """
+    Graph Memory Networks.
+    https://arxiv.org/abs/2002.09518
+
+    Heavily inspired by this implementation:
+    https://github.com/AaltoPML/Rethinking-pooling-in-GNNs
+    """
+
     def __init__(
         self,
         dropout: float,
@@ -419,7 +500,6 @@ class ExperimentGMN(ExperimentGNNBaseline):
         from data.datasets import get_data
         from torch.optim import Adam
         from torch.optim.lr_scheduler import ReduceLROnPlateau
-        from gmn.GMN import GMN
 
         self.param_kl_period = kl_period
         self.param_variant = variant
@@ -440,7 +520,7 @@ class ExperimentGMN(ExperimentGNNBaseline):
         res = get_data(self.DATASET_NAME, batch_size)
         train_loader, val_loader, test_loader, stats, evaluator, encode_edge = res
         self.loaders = {"train": train_loader, "test": test_loader, "valid": val_loader}
-        self.model = GMN(
+        self.model = gmn.GMN(
             stats["num_features"],
             stats["max_num_nodes"],
             stats["num_classes"],
@@ -497,12 +577,10 @@ class ExperimentGMN(ExperimentGNNBaseline):
         return False
 
     def _train(self):
-        from gmn.train import train, kl_train
-
         trainer = (
-            kl_train
+            gmn.kl_train
             if self.epoch % self.param_kl_period == 0 and self.param_variant == "gmn"
-            else train
+            else gmn.train
         )
         train_sup_loss, train_kl_loss = trainer(
             self.model,
@@ -518,10 +596,8 @@ class ExperimentGMN(ExperimentGNNBaseline):
         return train_sup_loss
 
     def _eval(self, data_split: str):
-        from gmn.train import evaluate
-
         loader = self.loaders[data_split]
-        acc, _, _ = evaluate(
+        acc, _, _ = gmn.evaluate(
             self.model,
             loader,
             self.device,
@@ -544,7 +620,12 @@ class ExperimentGMN(ExperimentGNNBaseline):
         return acc
 
 
-class ExperimentDeeperGCN(ExperimentGNNBaseline):
+class DeeperGCN(GNNBaseline):
+    """
+    Deeper GCN.
+    https://arxiv.org/abs/2006.07739
+    """
+
     def __init__(
         self,
         dropout: float,
@@ -634,7 +715,7 @@ class ExperimentDeeperGCN(ExperimentGNNBaseline):
 
 
 if __name__ == "__main__":
-    exp = ExperimentGMN(
+    exp = GraphMemoryNetwork(
         dropout=0.5,
         num_layers=5,
         emb_dim=300,
