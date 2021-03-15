@@ -205,12 +205,12 @@ class GraphNeuralNetwork(abc.ABC):
 
     @staticmethod
     def _get_loader(
-            dataset: PygGraphPropPredDataset,
-            split_idx: Dict[str, torch.Tensor],
-            data_split: str,
-            batch_size: int,
-            shuffle: bool,
-            num_workers: int,
+        dataset: PygGraphPropPredDataset,
+        split_idx: Dict[str, torch.Tensor],
+        data_split: str,
+        batch_size: int,
+        shuffle: bool,
+        num_workers: int,
     ) -> DataLoader:
         """
         Instantiates a data loader given the provided params.
@@ -220,7 +220,7 @@ class GraphNeuralNetwork(abc.ABC):
             dataset_split,
             batch_size=batch_size,
             shuffle=shuffle,
-            num_workers=num_workers
+            num_workers=num_workers,
         )
 
     def _eval_batch(self, batch, y_true, y_pred):
@@ -237,7 +237,9 @@ class GraphNeuralNetwork(abc.ABC):
             y_pred.append(pred.detach().cpu())
         return y_true, y_pred
 
-    def _compute_eval(self, y_true: List[torch.Tensor], y_pred: List[torch.Tensor]) -> float:
+    def _compute_eval(
+        self, y_true: List[torch.Tensor], y_pred: List[torch.Tensor]
+    ) -> float:
         """
         Logic to compute evaluation metric given parallel lists of true and predicted values.
         """
@@ -286,7 +288,18 @@ class GNNBaseline(GraphNeuralNetwork):
         desc: str = "",
     ):
         super().__init__(
-            gnn_type, dropout, num_layers, emb_dim, epochs, lr, device, batch_size, num_workers, grad_clip, debug, desc
+            gnn_type,
+            dropout,
+            num_layers,
+            emb_dim,
+            epochs,
+            lr,
+            device,
+            batch_size,
+            num_workers,
+            grad_clip,
+            debug,
+            desc,
         )
 
     @property
@@ -612,6 +625,7 @@ class DeeperGCN(GNNBaseline):
     Deeper GCN.
     https://arxiv.org/abs/2006.07739
     """
+
     def __init__(
         self,
         dropout: float,

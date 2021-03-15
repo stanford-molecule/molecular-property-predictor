@@ -21,6 +21,7 @@ class Experiment(NamedTuple):
     """
     Model class, arguments, description of the experiment, and whether we should skip running it.
     """
+
     model_cls: Type[GraphNeuralNetwork]
     args: dict
     desc: str  # short description of the experiment that'll show up in W&B as the experiment name

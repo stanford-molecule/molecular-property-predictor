@@ -57,15 +57,15 @@ def _flag(model, data, device, y, step_size, m, hidden_dim):
 
 
 def train(
-        model,
-        optimizer,
-        loader,
-        device,
-        hidden_dim,
-        epoch_stop=None,
-        flag: bool = False,
-        step_size: float = 1e-3,
-        m: int = 3,
+    model,
+    optimizer,
+    loader,
+    device,
+    hidden_dim,
+    epoch_stop=None,
+    flag: bool = False,
+    step_size: float = 1e-3,
+    m: int = 3,
 ):
     """
     Train loop for a single epoch. Runs FLAG if `flag == True`.
@@ -98,15 +98,15 @@ def train(
 
 
 def kl_train(
-        model,
-        optimizer,
-        loader,
-        device,
-        hidden_dim,
-        epoch_stop=None,
-        flag: bool = False,
-        step_size: float = 1e-3,
-        m: int = 3,
+    model,
+    optimizer,
+    loader,
+    device,
+    hidden_dim,
+    epoch_stop=None,
+    flag: bool = False,
+    step_size: float = 1e-3,
+    m: int = 3,
 ):
     """
     Run KL train. Not using FLAG here. TODO: does that make sense?
@@ -198,14 +198,14 @@ class GCNConv(MessagePassing):
 
 class MemConv(nn.Module):
     def __init__(
-            self,
-            num_features,
-            heads,
-            num_keys,
-            dim_out,
-            key_std=10,
-            variant="gmn",
-            max_queries=100,
+        self,
+        num_features,
+        heads,
+        num_keys,
+        dim_out,
+        key_std=10,
+        variant="gmn",
+        max_queries=100,
     ):
         super(MemConv, self).__init__()
         self.heads = heads
@@ -255,35 +255,35 @@ class MemConv(nn.Module):
         if self.variant == "random":
             C = (
                 self.rm[: Q.shape[1], :]
-                    .unsqueeze(0)
-                    .expand(Q.shape[0], -1, -1)
-                    .to(Q.device)
+                .unsqueeze(0)
+                .expand(Q.shape[0], -1, -1)
+                .to(Q.device)
             )
             if mask is not None:
                 ext_mask = mask.unsqueeze(2).repeat(1, 1, self.keys.size(1)).to(C.dtype)
         else:
             broad_Q = (
                 torch.unsqueeze(Q, 1)
-                    .expand(-1, self.heads, -1, -1)
-                    .unsqueeze(3)
-                    .expand(-1, -1, -1, self.num_keys, -1)
-                    .to(Q.device)
+                .expand(-1, self.heads, -1, -1)
+                .unsqueeze(3)
+                .expand(-1, -1, -1, self.num_keys, -1)
+                .to(Q.device)
             )
             broad_keys = (
                 torch.unsqueeze(self.keys, 0)
-                    .expand(broad_Q.shape[0], -1, -1, -1)
-                    .unsqueeze(2)
-                    .expand(-1, -1, broad_Q.shape[-3], -1, -1)
-                    .to(Q.device)
+                .expand(broad_Q.shape[0], -1, -1, -1)
+                .unsqueeze(2)
+                .expand(-1, -1, broad_Q.shape[-3], -1, -1)
+                .to(Q.device)
             )
             C = torch.sum(torch.abs(broad_Q - broad_keys) ** 2, 4).sqrt()
 
             if mask is not None:
                 ext_mask = (
                     mask.unsqueeze(1)
-                        .unsqueeze(3)
-                        .repeat(1, self.heads, 1, self.keys.size(1))
-                        .to(C.dtype)
+                    .unsqueeze(3)
+                    .repeat(1, self.heads, 1, self.keys.size(1))
+                    .to(C.dtype)
                 )
                 C = C * ext_mask
 
@@ -312,34 +312,34 @@ class MemConv(nn.Module):
 
 class GMN(torch.nn.Module):
     def __init__(
-            self,
-            num_feats,
-            max_nodes,
-            num_classes,
-            num_heads,
-            hidden_dim,
-            num_keys,
-            mem_hidden_dim=100,
-            variant="gmn",
-            encode_edge: bool = False,
-            use_deeper: bool = False,
-            num_layers: Optional[int] = None,
-            dropout: Optional[float] = None,
-            block: Optional[str] = None,
-            conv_encode_edge: Optional[bool] = None,
-            add_virtual_node: Optional[bool] = None,
-            conv: Optional[str] = None,
-            gcn_aggr: Optional[str] = None,
-            t: Optional[float] = None,
-            learn_t: Optional[bool] = None,
-            p: Optional[float] = None,
-            learn_p: Optional[bool] = None,
-            y: Optional[float] = None,
-            learn_y: Optional[bool] = None,
-            msg_norm: Optional[bool] = None,
-            learn_msg_scale: Optional[bool] = None,
-            norm: Optional[str] = None,
-            mlp_layers: Optional[int] = None,
+        self,
+        num_feats,
+        max_nodes,
+        num_classes,
+        num_heads,
+        hidden_dim,
+        num_keys,
+        mem_hidden_dim=100,
+        variant="gmn",
+        encode_edge: bool = False,
+        use_deeper: bool = False,
+        num_layers: Optional[int] = None,
+        dropout: Optional[float] = None,
+        block: Optional[str] = None,
+        conv_encode_edge: Optional[bool] = None,
+        add_virtual_node: Optional[bool] = None,
+        conv: Optional[str] = None,
+        gcn_aggr: Optional[str] = None,
+        t: Optional[float] = None,
+        learn_t: Optional[bool] = None,
+        p: Optional[float] = None,
+        learn_p: Optional[bool] = None,
+        y: Optional[float] = None,
+        learn_y: Optional[bool] = None,
+        msg_norm: Optional[bool] = None,
+        learn_msg_scale: Optional[bool] = None,
+        norm: Optional[str] = None,
+        mlp_layers: Optional[int] = None,
     ):
         super(GMN, self).__init__()
 
