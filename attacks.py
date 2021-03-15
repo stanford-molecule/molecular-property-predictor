@@ -1,3 +1,8 @@
+"""
+FLAG.
+Copied from https://github.com/devnkong/FLAG/blob/main/ogb/attacks.py
+"""
+
 import torch
 
 
