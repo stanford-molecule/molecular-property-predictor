@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -138,6 +140,23 @@ class GMN(torch.nn.Module):
         variant="gmn",
         encode_edge: bool = False,
         use_deeper: bool = False,
+        num_layers: Optional[int] = None,
+        dropout: Optional[float] = None,
+        block: Optional[str] = None,
+        conv_encode_edge: Optional[bool] = None,
+        add_virtual_node: Optional[bool] = None,
+        conv: Optional[str] = None,
+        gcn_aggr: Optional[str] = None,
+        t: Optional[float] = None,
+        learn_t: Optional[bool] = None,
+        p: Optional[float] = None,
+        learn_p: Optional[bool] = None,
+        y: Optional[float] = None,
+        learn_y: Optional[bool] = None,
+        msg_norm: Optional[bool] = None,
+        learn_msg_scale: Optional[bool] = None,
+        norm: Optional[str] = None,
+        mlp_layers: Optional[int] = None,
     ):
         super(GMN, self).__init__()
 
@@ -146,27 +165,26 @@ class GMN(torch.nn.Module):
 
         if encode_edge:
             if use_deeper:
-                # TODO: bubble these params up
                 self.q0 = deeper.DeeperGCN(
-                    num_layers=7,
-                    dropout=0.2,
-                    block="res+",
-                    conv_encode_edge=True,
-                    add_virtual_node=False,
+                    num_layers=num_layers,
+                    dropout=dropout,
+                    block=block,
+                    conv_encode_edge=conv_encode_edge,
+                    add_virtual_node=add_virtual_node,
                     hidden_channels=hidden_dim,
                     num_tasks=None,
-                    conv="gen",
-                    gcn_aggr="softmax",
-                    t=1.0,
-                    learn_t=True,
-                    p=1.0,
-                    learn_p=False,
-                    y=0.0,
-                    learn_y=False,
-                    msg_norm=False,
-                    learn_msg_scale=False,
-                    norm="batch",
-                    mlp_layers=1,
+                    conv=conv,
+                    gcn_aggr=gcn_aggr,
+                    t=t,
+                    learn_t=learn_t,
+                    p=p,
+                    learn_p=learn_p,
+                    y=y,
+                    learn_y=learn_y,
+                    msg_norm=msg_norm,
+                    learn_msg_scale=learn_msg_scale,
+                    norm=norm,
+                    mlp_layers=mlp_layers,
                     graph_pooling=None,
                     node_encoder=True,
                     encode_atom=False,

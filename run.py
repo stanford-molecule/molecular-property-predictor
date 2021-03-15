@@ -1,15 +1,15 @@
 from typing import NamedTuple, Type
 
 from experiment import (
-    GNNExperiment,
-    GMNExperimentRethink,
-    GNNFLAGExperiment,
-    DeeperGCNExperiment,
+    ExperimentGNNBaseline,
+    ExperimentGMN,
+    ExperimentGNNFLAG,
+    ExperimentDeeperGCN,
 )
 
 
 class Experiment(NamedTuple):
-    exp_cls: Type[GNNExperiment]
+    exp_cls: Type[ExperimentGNNBaseline]
     args: dict
     desc: str  # short description of the experiment that'll show up in W&B as the experiment name
     skip: bool
@@ -26,7 +26,7 @@ runs = 1
 
 experiments = [
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -43,7 +43,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -60,7 +60,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GMNExperimentRethink,
+        exp_cls=ExperimentGMN,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -84,7 +84,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GMNExperimentRethink,
+        exp_cls=ExperimentGMN,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -108,7 +108,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GMNExperimentRethink,
+        exp_cls=ExperimentGMN,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -132,7 +132,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -149,7 +149,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -166,7 +166,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -183,7 +183,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -200,7 +200,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -217,7 +217,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -234,7 +234,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNFLAGExperiment,
+        exp_cls=ExperimentGNNFLAG,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -253,7 +253,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNFLAGExperiment,
+        exp_cls=ExperimentGNNFLAG,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -272,7 +272,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GMNExperimentRethink,
+        exp_cls=ExperimentGMN,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -299,7 +299,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=DeeperGCNExperiment,
+        exp_cls=ExperimentDeeperGCN,
         args={
             "dropout": 0.2,
             "num_layers": 7,
@@ -332,7 +332,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gin-virtual",
             "dropout": 0.5,
@@ -349,7 +349,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GNNExperiment,
+        exp_cls=ExperimentGNNBaseline,
         args={
             "gnn_type": "gcn-virtual",
             "dropout": 0.5,
@@ -366,7 +366,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=GMNExperimentRethink,
+        exp_cls=ExperimentGMN,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -391,7 +391,7 @@ experiments = [
         skip=False,
     ),
     Experiment(
-        exp_cls=GMNExperimentRethink,
+        exp_cls=ExperimentGMN,
         args={
             "dropout": 0.5,
             "num_layers": 5,

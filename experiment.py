@@ -3,27 +3,25 @@ import pickle
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Dict
-from typing import List
+from typing import Dict, List, Optional
 from uuid import uuid4
 
 import numpy as np
 import torch
 import wandb
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
-from torch.autograd import Variable
 from tqdm import tqdm
 
 import attacks
 import deeper
-from dataset import DataLoaderGMN, DataLoaderGNN
+from dataset import DataLoaderGNN
 from gnn import GNN, GNNFlag
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-class GNNExperiment:
+class ExperimentGNNBaseline:
     """
     Run a single experiment (i.e. train and then evaluate on train/test/validation splits)
     given the provided parameters, and store in a pickle file for analysis.
@@ -288,7 +286,7 @@ class GNNExperiment:
         return self.__eval(y_true, y_pred)
 
 
-class GNNFLAGExperiment(GNNExperiment):
+class ExperimentGNNFLAG(ExperimentGNNBaseline):
     def __init__(
         self,
         gnn_type: str,
@@ -362,7 +360,7 @@ class GNNFLAGExperiment(GNNExperiment):
         return loss
 
 
-class GMNExperimentRethink(GNNExperiment):
+class ExperimentGMN(ExperimentGNNBaseline):
     def __init__(
         self,
         dropout: float,
@@ -386,6 +384,21 @@ class GMNExperimentRethink(GNNExperiment):
         m: int = 3,
         grad_clip: float = 0,
         use_deeper: bool = False,
+        block: Optional[str] = None,
+        conv_encode_edge: Optional[bool] = None,
+        add_virtual_node: Optional[bool] = None,
+        conv: Optional[str] = None,
+        gcn_aggr: Optional[str] = None,
+        t: Optional[float] = None,
+        learn_t: Optional[bool] = None,
+        p: Optional[float] = None,
+        learn_p: Optional[bool] = None,
+        y: Optional[float] = None,
+        learn_y: Optional[bool] = None,
+        msg_norm: Optional[bool] = None,
+        learn_msg_scale: Optional[bool] = None,
+        norm: Optional[str] = None,
+        mlp_layers: Optional[int] = None,
         debug: bool = False,
         desc: str = "",
     ):
@@ -438,6 +451,23 @@ class GMNExperimentRethink(GNNExperiment):
             variant=variant,
             encode_edge=encode_edge,
             use_deeper=use_deeper,
+            num_layers=num_layers,
+            dropout=dropout,
+            block=block,
+            conv_encode_edge=conv_encode_edge,
+            add_virtual_node=add_virtual_node,
+            conv=conv,
+            gcn_aggr=gcn_aggr,
+            t=t,
+            learn_t=learn_t,
+            p=p,
+            learn_p=learn_p,
+            y=y,
+            learn_y=learn_y,
+            msg_norm=msg_norm,
+            learn_msg_scale=learn_msg_scale,
+            norm=norm,
+            mlp_layers=mlp_layers,
         ).to(self.device)
         no_keys_param_list = [
             param for name, param in self.model.named_parameters() if "keys" not in name
@@ -514,7 +544,7 @@ class GMNExperimentRethink(GNNExperiment):
         return acc
 
 
-class DeeperGCNExperiment(GNNExperiment):
+class ExperimentDeeperGCN(ExperimentGNNBaseline):
     def __init__(
         self,
         dropout: float,
@@ -604,7 +634,7 @@ class DeeperGCNExperiment(GNNExperiment):
 
 
 if __name__ == "__main__":
-    exp = GMNExperimentRethink(
+    exp = ExperimentGMN(
         dropout=0.5,
         num_layers=5,
         emb_dim=300,
