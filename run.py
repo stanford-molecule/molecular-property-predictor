@@ -1,32 +1,45 @@
+"""
+Drives all the experiments.
+
+`experiments` is a list of `Experiment` objects that captures all the hyper-params for an experiment.
+
+This file is meant to run all the declared experiments (except for experiments with `skip==True`).
+"""
+
 from typing import NamedTuple, Type
 
-from experiment import (
-    ExperimentGNNBaseline,
-    ExperimentGMN,
-    ExperimentGNNFLAG,
-    ExperimentDeeperGCN,
+from models import (
+    GNNBaseline,
+    GraphMemoryNetwork,
+    GraphNeuralNetwork,
+    GNNFLAG,
+    DeeperGCN,
 )
 
 
 class Experiment(NamedTuple):
-    exp_cls: Type[ExperimentGNNBaseline]
+    """
+    Model class, arguments, description of the experiment, and whether we should skip running it.
+    """
+    model_cls: Type[GraphNeuralNetwork]
     args: dict
     desc: str  # short description of the experiment that'll show up in W&B as the experiment name
     skip: bool
 
 
+# global params
 epochs = (
-    30  # run everything for the same number of epochs so the results are comparable
+    100  # run everything for the same number of epochs so the results are comparable
 )
 batch_size = 32
-debug = False
+debug = True
 # eventually needs to be 5 runs per experiment to compute mean/std
 # see https://piazza.com/class/kjjj38qxifm2vx?cid=788
 runs = 1
 
 experiments = [
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -43,7 +56,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -60,7 +73,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGMN,
+        model_cls=GraphMemoryNetwork,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -84,7 +97,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGMN,
+        model_cls=GraphMemoryNetwork,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -108,7 +121,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGMN,
+        model_cls=GraphMemoryNetwork,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -132,7 +145,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -149,7 +162,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -166,7 +179,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
@@ -183,7 +196,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -200,7 +213,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -217,13 +230,13 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
             "num_layers": 3,
             "emb_dim": 500,
-            "epochs": 100,
+            "epochs": epochs,
             "lr": 1e-3,
             "device": 0,
             "batch_size": batch_size,
@@ -234,13 +247,13 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNFLAG,
+        model_cls=GNNFLAG,
         args={
             "gnn_type": "gcn",
             "dropout": 0.5,
             "num_layers": 3,
             "emb_dim": 300,
-            "epochs": 30,
+            "epochs": epochs,
             "lr": 1e-3,
             "device": 0,
             "batch_size": batch_size,
@@ -253,7 +266,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNFLAG,
+        model_cls=GNNFLAG,
         args={
             "gnn_type": "gin",
             "dropout": 0.5,
@@ -272,7 +285,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGMN,
+        model_cls=GraphMemoryNetwork,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -299,12 +312,12 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentDeeperGCN,
+        model_cls=DeeperGCN,
         args={
             "dropout": 0.2,
             "num_layers": 7,
             "emb_dim": 300,
-            "epochs": 100,
+            "epochs": epochs,
             "lr": 1e-2,
             "device": 0,
             "batch_size": 32,
@@ -332,7 +345,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gin-virtual",
             "dropout": 0.5,
@@ -349,7 +362,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGNNBaseline,
+        model_cls=GNNBaseline,
         args={
             "gnn_type": "gcn-virtual",
             "dropout": 0.5,
@@ -366,7 +379,7 @@ experiments = [
         skip=True,
     ),
     Experiment(
-        exp_cls=ExperimentGMN,
+        model_cls=GraphMemoryNetwork,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -377,7 +390,7 @@ experiments = [
             "batch_size": 32,
             "num_workers": 0,
             "num_heads": 5,
-            "hidden_dim": 64,
+            "hidden_dim": 128,
             "num_keys": [32, 1],
             "mem_hidden_dim": 16,
             "variant": "gmn",
@@ -403,10 +416,10 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
-        exp_cls=ExperimentGMN,
+        model_cls=GraphMemoryNetwork,
         args={
             "dropout": 0.5,
             "num_layers": 5,
@@ -417,7 +430,7 @@ experiments = [
             "batch_size": 32,
             "num_workers": 0,
             "num_heads": 5,
-            "hidden_dim": 64,
+            "hidden_dim": 128,
             "num_keys": [32, 1],
             "mem_hidden_dim": 16,
             "variant": "gmn",
