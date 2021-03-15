@@ -1,10 +1,13 @@
+import logging
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
 from ogb.graphproppred.mol_encoder import AtomEncoder, BondEncoder
-from gcn_lib.sparse.torch_vertex import GENConv
+from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
+
 from gcn_lib.sparse.torch_nn import norm_layer, MLP
-import logging
+from gcn_lib.sparse.torch_vertex import GENConv
 
 
 class DeeperGCN(torch.nn.Module):
@@ -16,7 +19,7 @@ class DeeperGCN(torch.nn.Module):
         conv_encode_edge: bool,
         add_virtual_node: bool,
         hidden_channels: int,
-        num_tasks: int,
+        num_tasks: Optional[int],
         conv: str,
         gcn_aggr: str,
         t: float,
@@ -29,15 +32,18 @@ class DeeperGCN(torch.nn.Module):
         learn_msg_scale: bool,
         norm: str,
         mlp_layers: int,
-        graph_pooling: str,
+        graph_pooling: Optional[str],
+        node_encoder: bool = False,  # no pooling, produce node-level representations
+        encode_atom: bool = True,
     ):
         super(DeeperGCN, self).__init__()
-
         self.num_layers = num_layers
         self.dropout = dropout
         self.block = block
         self.conv_encode_edge = conv_encode_edge
         self.add_virtual_node = add_virtual_node
+        self.encoder = node_encoder
+        self.encode_atom = encode_atom
 
         aggr = gcn_aggr
         self.learn_t = learn_t
@@ -103,16 +109,17 @@ class DeeperGCN(torch.nn.Module):
         if not self.conv_encode_edge:
             self.bond_encoder = BondEncoder(emb_dim=hidden_channels)
 
-        if graph_pooling == "sum":
-            self.pool = global_add_pool
-        elif graph_pooling == "mean":
-            self.pool = global_mean_pool
-        elif graph_pooling == "max":
-            self.pool = global_max_pool
-        else:
-            raise Exception("Unknown Pool Type")
+        if not node_encoder:
+            if graph_pooling == "sum":
+                self.pool = global_add_pool
+            elif graph_pooling == "mean":
+                self.pool = global_mean_pool
+            elif graph_pooling == "max":
+                self.pool = global_max_pool
+            else:
+                raise Exception("Unknown Pool Type")
 
-        self.graph_pred_linear = torch.nn.Linear(hidden_channels, num_tasks)
+            self.graph_pred_linear = torch.nn.Linear(hidden_channels, num_tasks)
 
     def forward(self, input_batch):
 
@@ -121,7 +128,7 @@ class DeeperGCN(torch.nn.Module):
         edge_attr = input_batch.edge_attr
         batch = input_batch.batch
 
-        h = self.atom_encoder(x)
+        h = self.atom_encoder(x) if self.encode_atom else x
 
         if self.add_virtual_node:
             virtualnode_embedding = self.virtualnode_embedding(
@@ -193,6 +200,9 @@ class DeeperGCN(torch.nn.Module):
                 h = F.dropout(h, p=self.dropout, training=self.training)
         else:
             raise Exception("Unknown block Type")
+
+        if self.encoder:
+            return h
 
         h_graph = self.pool(h, batch)
 

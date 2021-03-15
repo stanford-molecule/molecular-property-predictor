@@ -362,225 +362,6 @@ class GNNFLAGExperiment(GNNExperiment):
         return loss
 
 
-class GMNExperiment(GNNExperiment):
-    def __init__(
-        self,
-        dropout: float,
-        num_layers: int,
-        emb_dim: int,
-        epochs: int,
-        lr: float,
-        device: int,
-        batch_size: int,
-        num_workers: int,
-        alpha: float,
-        e_out: int,
-        input_dim: int,
-        hidden_dim: int,
-        output_dim: int,
-        pos_dim: int,
-        num_centroids: List[int],
-        weight_decay: float,
-        decay_step: int,
-        cluster_heads: int,
-        learn_centroid: str,
-        backward_period: int,
-        clip: float,
-        avg_grad: bool,
-        num_clusteriter: int,
-        use_rwr: bool,
-        mask_nodes: bool,
-        batchnorm: bool,
-        c_heads_pool: str,
-        p2p: bool,
-        linear_block: bool,
-        grad_clip: float = 0,
-        debug: bool = False,
-        desc: str = "",
-    ):
-        self.data_loader_cls = DataLoaderGMN
-        super().__init__(
-            "gmn",
-            dropout,
-            num_layers,
-            emb_dim,
-            epochs,
-            lr,
-            device,
-            batch_size,
-            num_workers,
-            grad_clip,
-            debug,
-            desc,
-        )
-        from model import GMN
-
-        self.num_centroids = num_centroids
-        self.weight_decay = weight_decay
-        self.decay_step = decay_step
-        self.learn_centroid = learn_centroid
-        self.backward_period = backward_period
-        self.clip = clip
-        self.avg_grad = avg_grad
-        self.num_clusteriter = num_clusteriter
-        self.use_rwr = use_rwr
-        self.mask_nodes = mask_nodes
-
-        self.total_num_cluster = len(self.num_centroids)
-        self.model = GMN(
-            alpha,
-            e_out,
-            input_dim,
-            hidden_dim,
-            output_dim,
-            pos_dim,
-            num_centroids,
-            self.max_nodes,
-            cluster_heads,
-            dropout,
-            batchnorm,
-            c_heads_pool,
-            p2p,
-            linear_block,
-            backward_period,
-        )
-        self.opt1, self.opt2, self.opt3 = self._get_optimizers()
-
-    def _get_optimizers(self):
-        param_dict = [
-            {"params": self.model.centroids, "lr": self.param_lr},
-            {"params": list(self.model.parameters())[1:], "lr": self.param_lr},
-        ]
-        param_dict_3 = [
-            {"params": list(self.model.parameters())[1:], "lr": self.param_lr}
-        ]
-        opt1 = torch.optim.Adam(
-            param_dict, lr=self.param_lr, weight_decay=self.weight_decay
-        )
-        opt2 = torch.optim.Adam(
-            [self.model.centroids], lr=self.param_lr, weight_decay=self.weight_decay
-        )
-        opt3 = torch.optim.Adam(
-            param_dict_3, lr=self.param_lr, weight_decay=self.weight_decay
-        )
-        return opt1, opt2, opt3
-
-    def _adjust_lr(self):
-        self.param_lr *= self.weight_decay
-        for param_group in self.opt1.param_groups:
-            param_group["lr"] = self.param_lr
-        for param_group in self.opt2.param_groups:
-            param_group["lr"] = self.param_lr
-        for param_group in self.opt3.param_groups:
-            param_group["lr"] = self.param_lr
-
-    def _compute(self, batch, is_train: bool):
-        batch_num_nodes = batch["num_nodes"].int().numpy() if self.mask_nodes else None
-        h0 = Variable(batch["feats"].float(), requires_grad=False).to(self.device)
-        label = Variable(batch["label"].long()).to(self.device)
-        adj_key = "rwr" if self.use_rwr else "adj"
-        adj = Variable(batch[adj_key].float(), requires_grad=False).to(self.device)
-
-        for c_layer in range(self.total_num_cluster):
-            if c_layer == 0:
-                # clone, detach, and not trainable for the first layer
-                new_adj = adj.clone().detach().requires_grad_(False)
-                new_feat = h0.clone().detach().requires_grad_(False)
-                del adj, h0
-            else:
-                new_adj.requires_grad_(is_train)
-                new_feat.requires_grad_(is_train)
-
-            # if it's not the last cluster
-            master_node_flag = False if c_layer + 1 < self.total_num_cluster else True
-            if c_layer + 1 < self.total_num_cluster:
-                for _ in range(self.num_clusteriter):
-                    _, hard_loss, new_adj, new_feat, _ = self.model(
-                        new_feat,
-                        new_adj,
-                        self.epoch,
-                        batch_num_nodes,
-                        c_layer,
-                        master_node_flag,
-                    )
-
-            # for the last cluster
-            else:
-                *_, h_prime = self.model(
-                    new_feat,
-                    new_adj,
-                    self.epoch,
-                    batch_num_nodes,
-                    c_layer,
-                    master_node_flag,
-                )
-
-        return h_prime, label, hard_loss
-
-    def _train(self) -> float:
-        self.model.train()
-        loss = 0
-        batch_cnt = 0
-        todo = (  # TODO: what is this condition?
-            self.epoch > 0
-            and self.epoch % self.backward_period == 1
-            and len(self.num_centroids) > 1
-            and self.learn_centroid is not "f"
-        )
-
-        if self.epoch > 0 and self.epoch % self.decay_step == 0:
-            self._adjust_lr()
-
-        # TODO: enhance data loader to support this
-        for idx, batch in enumerate(tqdm(self.loaders["train"], desc="Training")):
-            batch_cnt += 1
-            h_prime, label, hard_loss = self._compute(batch, is_train=True)
-            preds = torch.squeeze(h_prime)
-            loss_tensor = self.model.loss(preds, label)
-            loss += loss_tensor.item()
-            self.model.centroids.requires_grad_(False)
-
-            if todo:
-                self.model.centroids.requires_grad_(True)
-                if self.learn_centroid in ("a", "c"):
-                    hard_loss.backward()
-            else:
-                self.opt3.zero_grad()
-                loss_tensor.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-                self.opt3.step()
-
-            if self.debug and idx >= self.DEBUG_BATCHES:
-                break
-
-        if todo:
-            self.model.centroids.requires_grad_(True)
-
-            if self.avg_grad:
-                for i, m in enumerate(self.model.parameters()):
-                    if m.grad is not None:
-                        list(self.model.parameters())[i].grad = m.grad / (batch_cnt - 1)
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-
-            if self.learn_centroid == "c":
-                self.opt2.step()
-                self.opt2.zero_grad()
-            elif self.learn_centroid == "a":
-                self.opt1.step()
-                self.opt1.zero_grad()
-
-        return loss
-
-    def _eval_batch(self, batch, y_true, y_pred):
-        h_prime, label, _ = self._compute(batch, is_train=False)
-        # preds = torch.squeeze(h_prime)
-        preds = h_prime
-        scores, _ = torch.max(preds, dim=1)
-        y_true.append(label.unsqueeze(dim=-1).detach().cpu())
-        y_pred.append(scores.unsqueeze(dim=-1).detach().cpu())
-        return y_true, y_pred
-
-
 class GMNExperimentRethink(GNNExperiment):
     def __init__(
         self,
@@ -604,6 +385,7 @@ class GMNExperimentRethink(GNNExperiment):
         step_size: float = 1e-3,
         m: int = 3,
         grad_clip: float = 0,
+        use_deeper: bool = False,
         debug: bool = False,
         desc: str = "",
     ):
@@ -637,6 +419,7 @@ class GMNExperimentRethink(GNNExperiment):
         self.param_flag = flag
         self.param_step_size = step_size
         self.param_m = m
+        self.param_use_deeper = use_deeper
 
         self.epochs_no_improve = 0
         self.epoch_stop = self.DEBUG_BATCHES if self.debug else None
@@ -654,6 +437,7 @@ class GMNExperimentRethink(GNNExperiment):
             mem_hidden_dim,
             variant=variant,
             encode_edge=encode_edge,
+            use_deeper=use_deeper,
         ).to(self.device)
         no_keys_param_list = [
             param for name, param in self.model.named_parameters() if "keys" not in name

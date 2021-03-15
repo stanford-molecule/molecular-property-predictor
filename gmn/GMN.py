@@ -5,8 +5,10 @@ from torch.nn import LeakyReLU
 from torch.nn import Linear
 from torch_geometric.utils import to_dense_batch
 from torch_geometric.nn import GraphConv
+from torch_geometric.data.batch import Batch
 from utils import GCNConv
 from ogb.graphproppred.mol_encoder import AtomEncoder
+import deeper
 
 
 class MemConv(nn.Module):
@@ -134,13 +136,43 @@ class GMN(torch.nn.Module):
         num_keys,
         mem_hidden_dim=100,
         variant="gmn",
-        encode_edge=False,
+        encode_edge: bool = False,
+        use_deeper: bool = False,
     ):
         super(GMN, self).__init__()
 
         self.encode_edge = encode_edge
+        self.use_deeper = use_deeper
+
         if encode_edge:
-            self.q0 = GCNConv(hidden_dim, aggr="add")
+            if use_deeper:
+                # TODO: bubble these params up
+                self.q0 = deeper.DeeperGCN(
+                    num_layers=7,
+                    dropout=0.2,
+                    block="res+",
+                    conv_encode_edge=True,
+                    add_virtual_node=False,
+                    hidden_channels=hidden_dim,
+                    num_tasks=None,
+                    conv="gen",
+                    gcn_aggr="softmax",
+                    t=1.0,
+                    learn_t=True,
+                    p=1.0,
+                    learn_p=False,
+                    y=0.0,
+                    learn_y=False,
+                    msg_norm=False,
+                    learn_msg_scale=False,
+                    norm="batch",
+                    mlp_layers=1,
+                    graph_pooling=None,
+                    node_encoder=True,
+                    encode_atom=False,
+                )
+            else:
+                self.q0 = GCNConv(hidden_dim, aggr="add")
         else:
             self.q0 = GraphConv(num_feats, hidden_dim, aggr="add")
 
@@ -180,11 +212,21 @@ class GMN(torch.nn.Module):
             Linear(mem_hidden_dim, 50), nn.LeakyReLU(), Linear(50, self.num_classes)
         )
 
-    def initial_query(self, x, edge_index, edge_attr=None, perturb=None):
+    def initial_query(self, batch, x, edge_index, edge_attr=None, perturb=None):
         if self.encode_edge:
             x = self.atom_encoder(x)
             x = x + perturb if perturb is not None else x
-            x = self.q0(x, edge_index, edge_attr)
+
+            if not self.use_deeper:
+                x = self.q0(x, edge_index, edge_attr)
+            else:
+                # this is a hack to avoid changing the API
+                b = Batch()
+                b.x = x
+                b.batch = batch
+                b.edge_index = edge_index
+                b.edge_attr = edge_attr
+                x = self.q0(b)
         else:
             x = self.q0(x, edge_index)
         x = F.relu(x)
@@ -192,8 +234,7 @@ class GMN(torch.nn.Module):
         return x
 
     def forward(self, x, edge_index, batch, edge_attr, perturb=None):
-
-        q0 = self.initial_query(x, edge_index, edge_attr, perturb)
+        q0 = self.initial_query(batch, x, edge_index, edge_attr, perturb)
 
         q0, mask = to_dense_batch(q0, batch=batch)
 
