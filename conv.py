@@ -1,3 +1,8 @@
+"""
+Copied from OGB for running baselines.
+https://github.com/snap-stanford/ogb/tree/master/examples/graphproppred/mol/conv.py
+"""
+
 import torch
 import torch.nn.functional as F
 from ogb.graphproppred.mol_encoder import AtomEncoder, BondEncoder
