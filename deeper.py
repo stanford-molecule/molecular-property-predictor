@@ -1,3 +1,8 @@
+"""
+Wraps DeeperGCN.
+https://github.com/lightaime/deep_gcns_torch
+"""
+
 import logging
 from typing import Optional
 
