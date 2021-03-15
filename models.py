@@ -15,13 +15,16 @@ import numpy as np
 import torch
 import wandb
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
+from torch.optim import Adam
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch_geometric.data import DataLoader
 from tqdm import tqdm
 
 import attacks
 import deeper
-from gnn import GNN, GNNFlag
 import gmn
+from data import get_data
+from gnn import GNN, GNNFlag
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -502,9 +505,6 @@ class GraphMemoryNetwork(GNNBaseline):
             debug,
             desc,
         )
-        from data.datasets import get_data
-        from torch.optim import Adam
-        from torch.optim.lr_scheduler import ReduceLROnPlateau
 
         self.param_kl_period = kl_period
         self.param_variant = variant

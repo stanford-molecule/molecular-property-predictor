@@ -500,7 +500,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN random",
-        skip=False,
+        skip=True,
     ),
 ]
 
