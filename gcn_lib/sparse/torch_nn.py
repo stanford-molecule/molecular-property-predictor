@@ -34,19 +34,6 @@ def norm_layer(norm_type, nc):
     return layer
 
 
-class MultiSeq(Seq):
-    def __init__(self, *args):
-        super(MultiSeq, self).__init__(*args)
-
-    def forward(self, *inputs):
-        for module in self._modules.values():
-            if type(inputs) == tuple:
-                inputs = module(*inputs)
-            else:
-                inputs = module(inputs)
-        return inputs
-
-
 class MLP(Seq):
     def __init__(
         self, channels, act="relu", norm=None, bias=True, drop=0.0, last_lin=False
