@@ -33,7 +33,7 @@ epochs = (
     100  # run everything for the same number of epochs so the results are comparable
 )
 batch_size = 32
-debug = True
+debug = False
 # eventually needs to be 5 runs per experiment to compute mean/std
 # see https://piazza.com/class/kjjj38qxifm2vx?cid=788
 runs = 1
