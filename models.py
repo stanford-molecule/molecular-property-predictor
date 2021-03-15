@@ -35,6 +35,7 @@ class GraphNeuralNetwork(abc.ABC):
     # we'll only be working on `molhiv` for this project
     DATASET_NAME = "ogbg-molhiv"
     PROJECT_NAME = "gmn"
+    WANDB_TEAM = "cs224w"
     NUM_TASKS = 1
     DEBUG_EPOCHS = 2  # makes for quick debugging
     DEBUG_BATCHES = 20
@@ -114,7 +115,11 @@ class GraphNeuralNetwork(abc.ABC):
         tags = ["debug"] if self.debug else None
         name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
         with wandb.init(
-            project=self.PROJECT_NAME, config=self.params, tags=tags, name=name
+            project=self.PROJECT_NAME,
+            config=self.params,
+            tags=tags,
+            name=name,
+            entity=self.WANDB_TEAM,
         ) as wb:
             wb.watch(self.model)
 
