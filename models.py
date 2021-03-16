@@ -5,6 +5,7 @@ Contains the logic for training and evaluating different models.
 import abc
 import logging
 import pickle
+from glob import glob
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -70,18 +71,17 @@ class GraphNeuralNetwork(abc.ABC):
         self.debug = debug
         self.desc = desc
 
+        self.uuid = uuid4()
         self.dataset = PygGraphPropPredDataset(self.DATASET_NAME)
         self.eval_metric = self.dataset.eval_metric
         self.loss_fn = torch.nn.BCEWithLogitsLoss()
-        self.device = torch.device(
-            f"cuda:{device}" if torch.cuda.is_available() else "cpu"
-        )
+        self.device = self.get_device(device)
         self.split_idx = self.dataset.get_idx_split()
         self.evaluator = Evaluator(self.DATASET_NAME)
         self.model: GNN = self._get_model()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.param_lr)
         loader_partial = partial(
-            self._get_loader,
+            self.get_loader,
             dataset=self.dataset,
             split_idx=self.split_idx,
             batch_size=batch_size,
@@ -101,6 +101,10 @@ class GraphNeuralNetwork(abc.ABC):
         self.test_curve = []
         self.epoch = None
 
+    @staticmethod
+    def get_device(device: int):
+        return torch.device(f"cuda:{device}" if torch.cuda.is_available() else "cpu")
+
     @property
     def model_param_cnt(self) -> int:
         return sum(p.numel() for p in self.model.parameters())
@@ -110,18 +114,22 @@ class GraphNeuralNetwork(abc.ABC):
     def model_cls(self):
         pass
 
+    @property
+    def experiment_name(self):
+        return ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
+
     def run(self):
         """
         For each epoch train and then evaluate across all data splits.
         We're using W&B to track experiments.
         """
         tags = ["debug"] if self.debug else None
-        name = ("debug-" if self.debug else "") + "-".join(self.desc.lower().split())
+
         with wandb.init(
             project=self.PROJECT_NAME,
             config=self.params,
             tags=tags,
-            name=name,
+            name=self.experiment_name,
             entity=self.WANDB_TEAM,
         ) as wb:
             wb.watch(self.model)
@@ -154,6 +162,8 @@ class GraphNeuralNetwork(abc.ABC):
                 self.valid_curve.append(valid_perf)
                 self.test_curve.append(test_perf)
 
+                self._store_model()
+
                 if self.stop_early:
                     break
 
@@ -171,6 +181,20 @@ class GraphNeuralNetwork(abc.ABC):
     def stop_early(self) -> bool:
         return False
 
+    @property
+    def path_results_base(self) -> str:
+        return f"results/{self.uuid}-{self.experiment_name}"
+
+    def _store_model(self) -> None:
+        curr = self.valid_curve[-1]
+        best_prev = max(self.valid_curve[:-1], default=float("-inf"))
+        if curr > best_prev:
+            logging.info(
+                f"storing model with validation AUROC {curr}, previous best: {best_prev}"
+            )
+            path_model = Path(f"{self.path_results_base}-model.pkl")
+            pickle.dump(self.model, open(path_model, "wb"))
+
     def _store_results(self) -> None:
         """
         Stores all the curves and experiment parameters in a pickle file.
@@ -182,7 +206,7 @@ class GraphNeuralNetwork(abc.ABC):
             "test": self.test_curve,
         }
         to_store = {**results, **self.params, **self.times}
-        path = Path(f"results/{uuid4()}.pkl")
+        path = Path(f"{self.path_results_base}-results.pkl")
         path.parent.mkdir(exist_ok=True)
         pickle.dump(to_store, open(path, "wb"))
 
@@ -212,7 +236,7 @@ class GraphNeuralNetwork(abc.ABC):
         return gnn_partial(gnn_type=gnn_type).to(self.device)
 
     @staticmethod
-    def _get_loader(
+    def get_loader(
         dataset: PygGraphPropPredDataset,
         split_idx: Dict[str, torch.Tensor],
         data_split: str,
@@ -245,16 +269,25 @@ class GraphNeuralNetwork(abc.ABC):
             y_pred.append(pred.detach().cpu())
         return y_true, y_pred
 
+    @staticmethod
+    def compute_eval(
+        y_true: List[torch.Tensor],
+        y_pred: List[torch.Tensor],
+        evaluator: Evaluator,
+        eval_metric: str,
+    ) -> float:
+        y_true = torch.cat(y_true, dim=0).numpy()
+        y_pred = torch.cat(y_pred, dim=0).numpy()
+        input_dict = {"y_true": y_true, "y_pred": y_pred}
+        return evaluator.eval(input_dict)[eval_metric]
+
     def _compute_eval(
         self, y_true: List[torch.Tensor], y_pred: List[torch.Tensor]
     ) -> float:
         """
         Logic to compute evaluation metric given parallel lists of true and predicted values.
         """
-        y_true = torch.cat(y_true, dim=0).numpy()
-        y_pred = torch.cat(y_pred, dim=0).numpy()
-        input_dict = {"y_true": y_true, "y_pred": y_pred}
-        return self.evaluator.eval(input_dict)[self.eval_metric]
+        return self.compute_eval(y_true, y_pred, self.evaluator, self.eval_metric)
 
     @abc.abstractmethod
     def _train(self) -> float:
@@ -719,7 +752,84 @@ class DeeperGCN(GNNBaseline):
         ).to(self.device)
 
 
+class Ensemble:
+    def __init__(
+        self, model_paths: List[str], batch_size: int = 32, num_workers: int = 0
+    ):
+        self.model_paths = model_paths
+        self.dataset_name = GraphNeuralNetwork.DATASET_NAME
+        self.models = [pickle.load(open(path, "rb")) for path in self.model_paths]
+        self.device = GraphNeuralNetwork.get_device(device=0)
+        self.dataset = PygGraphPropPredDataset(self.dataset_name)
+        self.evaluator = Evaluator(self.dataset_name)
+        self.eval_metric = self.dataset.eval_metric
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.split_idx = self.dataset.get_idx_split()
+        loader = partial(
+            GraphNeuralNetwork.get_loader,
+            dataset=self.dataset,
+            split_idx=self.split_idx,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+        )
+        self.loaders = {
+            "valid": loader(data_split="valid"),
+            "test": loader(data_split="test"),
+        }
+
+    @classmethod
+    def best_n(cls, n: int, batch_size: int = 32, num_workers: int = 0) -> "Ensemble":
+        """
+        Creates an ensemble from the top `n` models based on best validation metric.
+
+        Assumes that we have stored model objects and results in the `results` folder.
+        """
+        out = []
+        paths = glob("results/*-results.pkl")
+        logging.info(f"Going to pick the best {n} from {len(paths)} choices")
+
+        for path in paths:
+            res = pickle.load(open(path, "rb"))
+            max_valid = max(res["valid"])
+            path_model = path.replace("-results.pkl", "") + "-model.pkl"
+            out.append((max_valid, path_model))
+
+        selected = sorted(out, reverse=True)[:n]
+        logging.info(f"selected: {selected}")
+        model_paths = [x[1] for x in selected]
+        return Ensemble(model_paths, batch_size=batch_size, num_workers=num_workers)
+
+    def _predict_batch(self, batch):
+        preds = []
+        for model in self.models:
+            model.eval()
+            preds.append(model(batch))
+        return torch.stack(preds, dim=0).mean(dim=0)
+
+    def _eval_split(self, data_split: str) -> float:
+        y_pred = []
+        y_true = []
+        for idx, batch in enumerate(
+            tqdm(self.loaders[data_split], desc=f"Evaluating {data_split}")
+        ):
+            batch = batch.to(self.device)
+            pred = self._predict_batch(batch)
+            y_true.append(batch.y.view(pred.shape).detach().cpu())
+            y_pred.append(pred.detach().cpu())
+
+        return GraphNeuralNetwork.compute_eval(
+            y_true, y_pred, self.evaluator, self.eval_metric
+        )
+
+    @torch.no_grad()
+    def evaluate(self):
+        return {split: self._eval_split(split) for split in {"valid", "test"}}
+
+
 if __name__ == "__main__":
+    # sample model run
     exp = GraphMemoryNetwork(
         dropout=0.5,
         num_layers=5,
@@ -739,5 +849,8 @@ if __name__ == "__main__":
         early_stop_patience=50,
         debug=True,
     )
-
     exp.run()
+
+    # sample ensemble run
+    ens = Ensemble.best_n(n=3)
+    print(ens.evaluate())
