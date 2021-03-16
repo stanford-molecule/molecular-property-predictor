@@ -193,7 +193,10 @@ class GraphNeuralNetwork(abc.ABC):
                 f"storing model with validation AUROC {curr}, previous best: {best_prev}"
             )
             path_model = Path(f"{self.path_results_base}-model.pkl")
-            pickle.dump(self.model, open(path_model, "wb"))
+            try:
+                pickle.dump(self.model, open(path_model, "wb"))
+            except AttributeError as e:
+                logging.error(f"cannot pickle. error {e}")
 
     def _store_results(self) -> None:
         """

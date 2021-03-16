@@ -17,10 +17,8 @@ def get_data(name, batch_size):
     stats["num_classes"] = num_classes
     stats["max_num_nodes"] = max_num_nodes
 
-    evaluator, encode_edge = (
-        (Evaluator(name), True) if name == "ogbg-molhiv" else (None, False)
-    )
-
+    evaluator = Evaluator(name)
+    encode_edge = True
     train_loader = DataLoader(data_train, batch_size, shuffle=True)
     val_loader = DataLoader(data_val, batch_size, shuffle=False)
     test_loader = DataLoader(data_test, batch_size, shuffle=False)

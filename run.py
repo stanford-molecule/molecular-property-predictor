@@ -33,10 +33,10 @@ epochs = (
     100  # run everything for the same number of epochs so the results are comparable
 )
 batch_size = 32
-debug = False
+debug = True
 # eventually needs to be 5 runs per experiment to compute mean/std
 # see https://piazza.com/class/kjjj38qxifm2vx?cid=788
-runs = 1
+runs = 5
 
 experiments = [
     Experiment(
@@ -54,7 +54,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,

@@ -374,8 +374,11 @@ class GMN(torch.nn.Module):
                 )
             else:
                 self.q0 = GCNConv(hidden_dim, aggr="add")
+                # from torch_geometric.nn import APPNP
+                # self.q0 = APPNP(10, .1)
         else:
-            self.q0 = GraphConv(num_feats, hidden_dim, aggr="add")
+            raise NotImplementedError
+            # self.q0 = GraphConv(num_feats, hidden_dim, aggr="add")
 
         self.num_features = num_feats
         self.max_nodes = max_nodes
