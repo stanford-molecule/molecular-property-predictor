@@ -30,7 +30,7 @@ class Experiment(NamedTuple):
 
 # global params
 epochs = (
-    30  # run everything for the same number of epochs so the results are comparable
+    100  # run everything for the same number of epochs so the results are comparable
 )
 batch_size = 32
 debug = False
@@ -582,7 +582,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN appnp hidden=128",
-        skip=False,
+        skip=True,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -626,7 +626,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN appnp flag hidden=128",
-        skip=False,
+        skip=True,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -667,6 +667,50 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN random appnp hidden=128",
+        skip=True,
+    ),
+    Experiment(
+        model_cls=GraphMemoryNetwork,
+        args={
+            "dropout": 0.5,
+            "num_layers": 7,
+            "emb_dim": 300,
+            "epochs": epochs,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": 32,
+            "num_workers": 0,
+            "num_heads": 5,
+            "hidden_dim": 256,
+            "num_keys": [32, 1],
+            "mem_hidden_dim": 16,
+            "variant": "gmn",
+            "lr_decay_patience": 10,
+            "kl_period": 5,
+            "early_stop_patience": 50,
+            "use_deeper": True,
+            "block": "res+",
+            "conv_encode_edge": True,
+            "add_virtual_node": True,
+            "conv": "gen",
+            "gcn_aggr": "softmax",
+            "t": 1.0,
+            "learn_t": True,
+            "p": 1.0,
+            "learn_p": False,
+            "y": 0.0,
+            "learn_y": False,
+            "msg_norm": False,
+            "learn_msg_scale": False,
+            "norm": "batch",
+            "mlp_layers": 1,
+            "use_appnp": True,
+            "flag": True,
+            "step_size": 1e-3,
+            "m": 3,
+            "debug": debug,
+        },
+        desc="deeper GMN appnp flag hidden=256 7-layer",
         skip=False,
     ),
 ]
