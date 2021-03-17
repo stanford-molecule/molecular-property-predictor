@@ -6,6 +6,7 @@ Drives all the experiments.
 This file is meant to run all the declared experiments (except for experiments with `skip==True`).
 """
 
+import logging
 from typing import NamedTuple, Type
 
 from models import (
@@ -15,6 +16,9 @@ from models import (
     GNNFLAG,
     DeeperGCN,
 )
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 
 class Experiment(NamedTuple):
@@ -455,7 +459,7 @@ experiments = [
             "batch_size": 32,
             "num_workers": 0,
             "num_heads": 5,
-            "hidden_dim": 64,
+            "hidden_dim": 256,
             "num_keys": [32, 1],
             "mem_hidden_dim": 16,
             "variant": "gmn",
@@ -465,7 +469,7 @@ experiments = [
             "use_deeper": True,
             "block": "res+",
             "conv_encode_edge": True,
-            "add_virtual_node": False,
+            "add_virtual_node": True,
             "conv": "gen",
             "gcn_aggr": "softmax",
             "t": 1.0,
@@ -483,8 +487,8 @@ experiments = [
             "m": 3,
             "debug": debug,
         },
-        desc="deeper GMN FLAG",
-        skip=True,
+        desc="deeper GMN FLAG large",
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -746,10 +750,12 @@ if __name__ == "__main__":
     assert len({e.desc for e in experiments}) == len(
         experiments
     ), "make sure there are no duplicate experiment descriptions"
-    print(
+    logging.info(
         f"going to run {len(experiments_to_run)} experiment(s) out of a total of {len(experiments)}"
     )
     for cls, args, desc, _ in experiments_to_run:
         for idx in range(runs):
-            print(f"running experiment {desc} run {idx + 1}")
-            cls(**args, desc=f"{desc} run={idx + 1}").run()
+            logging.info(f"running experiment {desc} run {idx + 1}")
+            exp = cls(**args, desc=f"{desc} run={idx + 1}")
+            logging.info(f"Model has {exp.model_param_cnt} params")
+            exp.run()
