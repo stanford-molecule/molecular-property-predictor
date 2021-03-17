@@ -2,7 +2,8 @@
 GMN.
 """
 
-from typing import Optional
+from enum import Enum
+from typing import NamedTuple, Optional
 
 import torch
 import torch.nn as nn
@@ -12,6 +13,7 @@ from ogb.graphproppred.mol_encoder import BondEncoder
 from torch.nn import LeakyReLU
 from torch.nn import Linear
 from torch_geometric.data.batch import Batch
+from torch_geometric.nn import APPNP
 from torch_geometric.nn import GraphConv
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import to_dense_batch
@@ -310,6 +312,17 @@ class MemConv(nn.Module):
         return self.sigma(self.lin(V)), kl
 
 
+class Q0LayerType(Enum):
+    deeper = "deeper"
+    with_edge = "with_edge"
+    no_edge = "no_edge"
+
+
+class Q0Layer(NamedTuple):
+    layer: nn.Module
+    layer_type: Q0LayerType
+
+
 class GMN(torch.nn.Module):
     def __init__(
         self,
@@ -321,7 +334,6 @@ class GMN(torch.nn.Module):
         num_keys,
         mem_hidden_dim=100,
         variant="gmn",
-        encode_edge: bool = False,
         use_deeper: bool = False,
         num_layers: Optional[int] = None,
         dropout: Optional[float] = None,
@@ -340,45 +352,48 @@ class GMN(torch.nn.Module):
         learn_msg_scale: Optional[bool] = None,
         norm: Optional[str] = None,
         mlp_layers: Optional[int] = None,
+        use_appnp: bool = False,
+        k: int = 10,
+        alpha: float = 0.1,
     ):
         super(GMN, self).__init__()
 
-        self.encode_edge = encode_edge
+        self.k = k
+        self.alpha = alpha
         self.use_deeper = use_deeper
+        self.q0s = [Q0Layer(GCNConv(hidden_dim, aggr="add"), Q0LayerType.with_edge)]
 
-        if encode_edge:
-            if use_deeper:
-                self.q0 = deeper.DeeperGCN(
-                    num_layers=num_layers,
-                    dropout=dropout,
-                    block=block,
-                    conv_encode_edge=conv_encode_edge,
-                    add_virtual_node=add_virtual_node,
-                    hidden_channels=hidden_dim,
-                    num_tasks=None,
-                    conv=conv,
-                    gcn_aggr=gcn_aggr,
-                    t=t,
-                    learn_t=learn_t,
-                    p=p,
-                    learn_p=learn_p,
-                    y=y,
-                    learn_y=learn_y,
-                    msg_norm=msg_norm,
-                    learn_msg_scale=learn_msg_scale,
-                    norm=norm,
-                    mlp_layers=mlp_layers,
-                    graph_pooling=None,
-                    node_encoder=True,
-                    encode_atom=False,
-                )
-            else:
-                self.q0 = GCNConv(hidden_dim, aggr="add")
-                # from torch_geometric.nn import APPNP
-                # self.q0 = APPNP(10, .1)
-        else:
-            raise NotImplementedError
-            # self.q0 = GraphConv(num_feats, hidden_dim, aggr="add")
+        if use_deeper:
+            deeper_gcn = deeper.DeeperGCN(
+                num_layers=num_layers,
+                dropout=dropout,
+                block=block,
+                conv_encode_edge=conv_encode_edge,
+                add_virtual_node=add_virtual_node,
+                hidden_channels=hidden_dim,
+                num_tasks=None,
+                conv=conv,
+                gcn_aggr=gcn_aggr,
+                t=t,
+                learn_t=learn_t,
+                p=p,
+                learn_p=learn_p,
+                y=y,
+                learn_y=learn_y,
+                msg_norm=msg_norm,
+                learn_msg_scale=learn_msg_scale,
+                norm=norm,
+                mlp_layers=mlp_layers,
+                graph_pooling=None,
+                node_encoder=True,
+                encode_atom=False,
+            )
+            self.q0s.append(Q0Layer(deeper_gcn, Q0LayerType.deeper))
+
+        if use_appnp:
+            self.q0s.append(
+                Q0Layer(APPNP(K=self.k, alpha=self.alpha), Q0LayerType.no_edge)
+            )
 
         self.num_features = num_feats
         self.max_nodes = max_nodes
@@ -388,8 +403,7 @@ class GMN(torch.nn.Module):
         self.variant = variant
 
         self.bn = nn.BatchNorm1d(hidden_dim)
-        self.q1 = GraphConv(hidden_dim, hidden_dim)
-
+        self.q1 = GraphConv(hidden_dim * len(self.q0s), hidden_dim)
         self.mem_layers = nn.ModuleList()
 
         max_dims = [self.max_nodes]
@@ -417,22 +431,26 @@ class GMN(torch.nn.Module):
         )
 
     def initial_query(self, batch, x, edge_index, edge_attr=None, perturb=None):
-        if self.encode_edge:
-            x = self.atom_encoder(x)
-            x = x + perturb if perturb is not None else x
+        x = self.atom_encoder(x)
+        x = x + perturb if perturb is not None else x
 
-            if not self.use_deeper:
-                x = self.q0(x, edge_index, edge_attr)
-            else:
+        xs = []
+
+        for layer, layer_type in self.q0s:
+            if layer_type == Q0LayerType.deeper:
                 # this is a hack to avoid changing the API
                 b = Batch()
                 b.x = x
                 b.batch = batch
                 b.edge_index = edge_index
                 b.edge_attr = edge_attr
-                x = self.q0(b)
-        else:
-            x = self.q0(x, edge_index)
+                xs.append(layer(b))
+            elif layer_type == Q0LayerType.with_edge:
+                xs.append(layer(x, edge_index, edge_attr))
+            elif layer_type == Q0LayerType.no_edge:
+                xs.append(layer(x, edge_index))
+
+        x = torch.cat(xs, dim=1)
         x = F.relu(x)
         x = F.relu(self.q1(x, edge_index))
         return x

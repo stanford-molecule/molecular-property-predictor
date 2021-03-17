@@ -5,9 +5,9 @@ Contains the logic for training and evaluating different models.
 import abc
 import logging
 import pickle
-from glob import glob
 from datetime import datetime
 from functools import partial
+from glob import glob
 from pathlib import Path
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -163,6 +163,7 @@ class GraphNeuralNetwork(abc.ABC):
                 self.test_curve.append(test_perf)
 
                 self._store_model()
+                self._store_results()
 
                 if self.stop_early:
                     break
@@ -175,7 +176,6 @@ class GraphNeuralNetwork(abc.ABC):
             logger.info(f"Best train : {best_train}")
             logger.info(f"Best valid : {self.valid_curve[best_val_epoch]}")
             logger.info(f"Best test  : {self.test_curve[best_val_epoch]}")
-            self._store_results()
 
     @property
     def stop_early(self) -> bool:
@@ -183,7 +183,7 @@ class GraphNeuralNetwork(abc.ABC):
 
     @property
     def path_results_base(self) -> str:
-        return f"results/{self.uuid}-{self.experiment_name}"
+        return f"results/{self.experiment_name}-{self.uuid}"
 
     def _store_model(self) -> None:
         curr = self.valid_curve[-1]
@@ -525,6 +525,7 @@ class GraphMemoryNetwork(GNNBaseline):
         learn_msg_scale: Optional[bool] = None,
         norm: Optional[str] = None,
         mlp_layers: Optional[int] = None,
+        use_appnp: bool = False,
         debug: bool = False,
         desc: str = "",
     ):
@@ -555,12 +556,13 @@ class GraphMemoryNetwork(GNNBaseline):
         self.param_step_size = step_size
         self.param_m = m
         self.param_use_deeper = use_deeper
+        self.param_use_appnp = use_appnp
 
         self.epochs_no_improve = 0
         self.epoch_stop = self.DEBUG_BATCHES if self.debug else None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         res = get_data(self.DATASET_NAME, batch_size)
-        train_loader, val_loader, test_loader, stats, evaluator, encode_edge = res
+        train_loader, val_loader, test_loader, stats, evaluator, _ = res
         self.loaders = {"train": train_loader, "test": test_loader, "valid": val_loader}
         self.model = gmn.GMN(
             stats["num_features"],
@@ -571,7 +573,6 @@ class GraphMemoryNetwork(GNNBaseline):
             num_keys,
             mem_hidden_dim,
             variant=variant,
-            encode_edge=encode_edge,
             use_deeper=use_deeper,
             num_layers=num_layers,
             dropout=dropout,
@@ -590,6 +591,7 @@ class GraphMemoryNetwork(GNNBaseline):
             learn_msg_scale=learn_msg_scale,
             norm=norm,
             mlp_layers=mlp_layers,
+            use_appnp=use_appnp,
         ).to(self.device)
         no_keys_param_list = [
             param for name, param in self.model.named_parameters() if "keys" not in name
@@ -792,6 +794,10 @@ class Ensemble:
         """
         out = []
         paths = glob("results/*-results.pkl")
+        if len(paths) == 0:
+            raise ValueError(
+                "can't find any model results to build ensemble learners from"
+            )
         logging.info(f"Going to pick the best {n} from {len(paths)} choices")
 
         for path in paths:

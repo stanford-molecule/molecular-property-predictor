@@ -30,10 +30,10 @@ class Experiment(NamedTuple):
 
 # global params
 epochs = (
-    100  # run everything for the same number of epochs so the results are comparable
+    30  # run everything for the same number of epochs so the results are comparable
 )
 batch_size = 32
-debug = False
+debug = True
 # eventually needs to be 5 runs per experiment to compute mean/std
 # see https://piazza.com/class/kjjj38qxifm2vx?cid=788
 runs = 5
@@ -143,7 +143,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GMN",
-        skip=False,
+        skip=True,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -501,6 +501,47 @@ experiments = [
         },
         desc="deeper GMN random",
         skip=True,
+    ),
+    Experiment(
+        model_cls=GraphMemoryNetwork,
+        args={
+            "dropout": 0.5,
+            "num_layers": 5,
+            "emb_dim": 300,
+            "epochs": epochs,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": 32,
+            "num_workers": 0,
+            "num_heads": 5,
+            "hidden_dim": 64,
+            "num_keys": [32, 1],
+            "mem_hidden_dim": 16,
+            "variant": "random",
+            "lr_decay_patience": 10,
+            "kl_period": 5,
+            "early_stop_patience": 50,
+            "use_deeper": True,
+            "block": "res+",
+            "conv_encode_edge": True,
+            "add_virtual_node": False,
+            "conv": "gen",
+            "gcn_aggr": "softmax",
+            "t": 1.0,
+            "learn_t": True,
+            "p": 1.0,
+            "learn_p": False,
+            "y": 0.0,
+            "learn_y": False,
+            "msg_norm": False,
+            "learn_msg_scale": False,
+            "norm": "batch",
+            "mlp_layers": 1,
+            "use_appnp": True,
+            "debug": debug,
+        },
+        desc="deeper GMN random appnp",
+        skip=False,
     ),
 ]
 
