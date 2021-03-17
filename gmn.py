@@ -3,7 +3,7 @@ GMN.
 """
 
 from enum import Enum
-from typing import NamedTuple, Optional
+from typing import Optional
 
 import torch
 import torch.nn as nn

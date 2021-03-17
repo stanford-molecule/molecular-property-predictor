@@ -193,9 +193,9 @@ class GraphNeuralNetwork(abc.ABC):
             logging.info(
                 f"storing model with validation AUROC {curr:.4f} (test: {test:.4f}), previous best: {best_prev}"
             )
-            path_model = Path(f"{self.path_results_base}-model.pkl")
+            path_model = Path(f"{self.path_results_base}-model.pt")
             try:
-                pickle.dump(self.model, open(path_model, "wb"))
+                torch.save(self.model, str(path_model))
             except AttributeError as e:
                 logging.error(f"cannot pickle. error {e}")
 
@@ -764,7 +764,7 @@ class Ensemble:
     ):
         self.model_paths = model_paths
         self.dataset_name = GraphNeuralNetwork.DATASET_NAME
-        self.models = [pickle.load(open(path, "rb")) for path in self.model_paths]
+        self.models = [torch.load(path) for path in self.model_paths]
         self.device = GraphNeuralNetwork.get_device(device=0)
         self.dataset = PygGraphPropPredDataset(self.dataset_name)
         self.evaluator = Evaluator(self.dataset_name)
@@ -803,8 +803,9 @@ class Ensemble:
         for path in paths:
             res = pickle.load(open(path, "rb"))
             max_valid = max(res["valid"])
-            path_model = path.replace("-results.pkl", "") + "-model.pkl"
-            out.append((max_valid, path_model))
+            path_model = path.replace("-results.pkl", "") + "-model.pt"
+            if Path(path_model).exists():
+                out.append((max_valid, path_model))
 
         selected = sorted(out, reverse=True)[:n]
         logging.info(f"selected: {selected}")

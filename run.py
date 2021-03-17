@@ -541,7 +541,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN random appnp",
-        skip=False,
+        skip=True,
     ),
 ]
 
