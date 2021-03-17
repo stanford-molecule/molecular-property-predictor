@@ -196,6 +196,7 @@ class GraphNeuralNetwork(abc.ABC):
             path_model = Path(f"{self.path_results_base}-model.pt")
             try:
                 torch.save(self.model, str(path_model))
+                wandb.save(str(path_model))
             except AttributeError as e:
                 logging.error(f"cannot pickle. error {e}")
 
