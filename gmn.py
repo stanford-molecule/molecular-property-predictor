@@ -1,5 +1,6 @@
 """
 GMN.
+TODO: refactor and cite sources.
 """
 
 from enum import Enum
@@ -451,7 +452,6 @@ class GMN(torch.nn.Module):
 
     def forward(self, x, edge_index, batch, edge_attr, perturb=None):
         q0 = self.initial_query(batch, x, edge_index, edge_attr, perturb)
-
         q0, mask = to_dense_batch(q0, batch=batch)
 
         batch_size, num_nodes, num_channels = q0.size()
