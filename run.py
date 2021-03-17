@@ -30,7 +30,7 @@ class Experiment(NamedTuple):
 
 # global params
 epochs = (
-    100  # run everything for the same number of epochs so the results are comparable
+    30  # run everything for the same number of epochs so the results are comparable
 )
 batch_size = 32
 debug = False
@@ -143,6 +143,30 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GMN",
+        skip=True,
+    ),
+    Experiment(
+        model_cls=GraphMemoryNetwork,
+        args={
+            "dropout": 0.5,
+            "num_layers": 5,
+            "emb_dim": 300,
+            "epochs": epochs,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": 32,
+            "num_workers": 0,
+            "num_heads": 5,
+            "hidden_dim": 64,
+            "num_keys": [32, 1],
+            "mem_hidden_dim": 16,
+            "variant": "random",
+            "lr_decay_patience": 10,
+            "kl_period": 5,
+            "early_stop_patience": 50,
+            "debug": debug,
+        },
+        desc="vanilla GMN random",
         skip=True,
     ),
     Experiment(
@@ -711,7 +735,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN appnp flag hidden=256 7-layer",
-        skip=False,
+        skip=True,
     ),
 ]
 

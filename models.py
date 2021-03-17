@@ -554,7 +554,6 @@ class GraphMemoryNetwork(GNNBaseline):
         self.param_hidden_dim = hidden_dim
         self.param_num_keys = num_keys
         self.param_mem_hidden_dim = mem_hidden_dim
-        self.param_variant = variant
         self.param_flag = flag
         self.param_step_size = step_size
         self.param_m = m
