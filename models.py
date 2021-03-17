@@ -189,8 +189,9 @@ class GraphNeuralNetwork(abc.ABC):
         curr = self.valid_curve[-1]
         best_prev = max(self.valid_curve[:-1], default=float("-inf"))
         if curr > best_prev:
+            test = self.test_curve[-1]
             logging.info(
-                f"storing model with validation AUROC {curr}, previous best: {best_prev}"
+                f"storing model with validation AUROC {curr:.4f} (test: {test:.4f}), previous best: {best_prev}"
             )
             path_model = Path(f"{self.path_results_base}-model.pkl")
             try:
