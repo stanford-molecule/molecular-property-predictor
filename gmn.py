@@ -312,15 +312,10 @@ class MemConv(nn.Module):
         return self.sigma(self.lin(V)), kl
 
 
-class Q0LayerType(Enum):
+class Q0LayerType(str, Enum):
     deeper = "deeper"
     with_edge = "with_edge"
     no_edge = "no_edge"
-
-
-class Q0Layer(NamedTuple):
-    layer: nn.Module
-    layer_type: Q0LayerType
 
 
 class GMN(torch.nn.Module):
@@ -361,7 +356,15 @@ class GMN(torch.nn.Module):
         self.k = k
         self.alpha = alpha
         self.use_deeper = use_deeper
-        self.q0s = [Q0Layer(GCNConv(hidden_dim, aggr="add"), Q0LayerType.with_edge)]
+        self.num_features = num_feats
+        self.max_nodes = max_nodes
+        self.num_classes = num_classes
+        self.num_heads = num_heads
+        self.num_keys = num_keys
+        self.variant = variant
+
+        self.q0s = torch.nn.ModuleDict()
+        self.q0s[Q0LayerType.with_edge] = GCNConv(hidden_dim, aggr="add")
 
         if use_deeper:
             deeper_gcn = deeper.DeeperGCN(
@@ -388,19 +391,10 @@ class GMN(torch.nn.Module):
                 node_encoder=True,
                 encode_atom=False,
             )
-            self.q0s.append(Q0Layer(deeper_gcn, Q0LayerType.deeper))
+            self.q0s[Q0LayerType.deeper] = deeper_gcn
 
         if use_appnp:
-            self.q0s.append(
-                Q0Layer(APPNP(K=self.k, alpha=self.alpha), Q0LayerType.no_edge)
-            )
-
-        self.num_features = num_feats
-        self.max_nodes = max_nodes
-        self.num_classes = num_classes
-        self.num_heads = num_heads
-        self.num_keys = num_keys
-        self.variant = variant
+            self.q0s[Q0LayerType.no_edge] = APPNP(K=self.k, alpha=self.alpha)
 
         self.bn = nn.BatchNorm1d(hidden_dim)
         self.q1 = GraphConv(hidden_dim * len(self.q0s), hidden_dim)
@@ -436,7 +430,7 @@ class GMN(torch.nn.Module):
 
         xs = []
 
-        for layer, layer_type in self.q0s:
+        for layer_type, layer in self.q0s.items():
             if layer_type == Q0LayerType.deeper:
                 # this is a hack to avoid changing the API
                 b = Batch()
