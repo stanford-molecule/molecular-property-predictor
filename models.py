@@ -209,6 +209,8 @@ class GraphNeuralNetwork(abc.ABC):
             "train": self.train_curve,
             "valid": self.valid_curve,
             "test": self.test_curve,
+            "name": self.experiment_name,
+            "uuid": self.uuid,
         }
         to_store = {**results, **self.params, **self.times}
         path = Path(f"{self.path_results_base}-results.pkl")
