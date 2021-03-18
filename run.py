@@ -58,7 +58,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -75,7 +75,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GIN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -99,7 +99,7 @@ experiments = [
             "debug": debug,
         },
         desc="distance GMN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -123,7 +123,7 @@ experiments = [
             "debug": debug,
         },
         desc="random GMN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -147,7 +147,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GMN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -171,7 +171,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GMN random",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -188,7 +188,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN hidden dim=100",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -205,7 +205,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN num_layers=3",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -222,7 +222,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN hidden dim=500",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -239,7 +239,7 @@ experiments = [
             "debug": debug,
         },
         desc="gin dim=500 epoch=100",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -256,7 +256,7 @@ experiments = [
             "debug": debug,
         },
         desc="gin dim=500 epoch=100 10 layers",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -273,7 +273,7 @@ experiments = [
             "debug": debug,
         },
         desc="gin dim=500 epoch=100 3 layers",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNFLAG,
@@ -292,7 +292,7 @@ experiments = [
             "step_size": 1e-3,
         },
         desc="gcn flag",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNFLAG,
@@ -311,7 +311,7 @@ experiments = [
             "step_size": 1e-3,
         },
         desc="gin flag",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -338,7 +338,7 @@ experiments = [
             "debug": debug,
         },
         desc="GMN flag",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=DeeperGCN,
@@ -371,7 +371,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla Deeper GCN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -388,7 +388,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GIN virtual",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GNNBaseline,
@@ -405,7 +405,7 @@ experiments = [
             "debug": debug,
         },
         desc="vanilla GCN virtual",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -445,7 +445,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -488,7 +488,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN FLAG large",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -528,7 +528,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN random",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -569,7 +569,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN random appnp",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -610,7 +610,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN appnp hidden=128",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -654,7 +654,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN appnp flag hidden=128",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -695,7 +695,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN random appnp hidden=128",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -719,7 +719,7 @@ experiments = [
             "debug": debug,
         },
         desc="3 layer GMN",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -763,7 +763,7 @@ experiments = [
             "debug": debug,
         },
         desc="deeper GMN appnp flag hidden=256 7-layer",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -788,7 +788,7 @@ experiments = [
             "debug": debug,
         },
         desc="just appnp",
-        skip=True,
+        skip=False,
     ),
     Experiment(
         model_cls=GraphMemoryNetwork,
@@ -814,7 +814,7 @@ experiments = [
             "debug": debug,
         },
         desc="just appnp flag",
-        skip=True,
+        skip=False,
     ),
 ]
 

@@ -529,9 +529,56 @@ class GraphMemoryNetwork(GNNBaseline):
         norm: Optional[str] = None,
         mlp_layers: Optional[int] = None,
         use_appnp: bool = False,
+        k: int = 10,
+        alpha: float = 0.1,
         debug: bool = False,
         desc: str = "",
     ):
+        """
+
+        :param dropout: dropout value
+        :param num_layers: deeperGCN number of layers
+        :param emb_dim: number of dimensions for node-level encoding embeddings
+        :param epochs: max # of epochs to run
+        :param lr: learning rate
+        :param device: device index if using gpu
+        :param batch_size:
+        :param num_workers: for data loader
+        :param num_heads: for GMN
+        :param hidden_dim: GMN hidden dimensions
+        :param num_keys: GMN
+        :param mem_hidden_dim: GMN hidden dimensions for the keys
+        :param variant: gmn, random, or distance
+        :param lr_decay_patience:
+        :param kl_period:
+        :param early_stop_patience:
+        :param flag: if True FLAG will be enabled
+        :param step_size: FLAG step size
+        :param m: number of rounds of FLAG
+        :param grad_clip: if > 0 will clip gradients
+        :param use_deeper: if True will add deeper GCN node encoder
+        :param block: type of deeper GCN block to use (e.g. res+)
+        :param conv_encode_edge: if True will encode edge embeddings
+        :param add_virtual_node: if True will add virtual node for DeeperGCN
+        :param conv: convolutional block type for deeperGCN (e.g. gen)
+        :param gcn_aggr: aggregator for GENConv (mean, max, softmax, power, softmax_sg)
+        :param t: softmax temperature
+        :param learn_t: whether this will be learned
+        :param p: power of PowerMean method for deeperGCN
+        :param learn_p: whether this will be learned
+        :param y: the power of softmax_sum and powermean_sum
+        :param learn_y: whether this will be learned
+        :param msg_norm: whether to use msg norm
+        :param learn_msg_scale: whether the message scale s will be learned
+        :param norm: type of normalization (e.g. batch)
+        :param mlp_layers: number of MLP layers used in the convolutional layer
+        :param use_appnp: whether APPNP is used
+        :param k: K value for APPNP
+        :param alpha: for APPNP
+        :param debug: if we're doing a debug run to truncate training and evaluation
+        :param desc: name of this experiment for logging
+        """
+
         super().__init__(
             "gmn-rethink",
             dropout,
@@ -559,6 +606,8 @@ class GraphMemoryNetwork(GNNBaseline):
         self.param_m = m
         self.param_use_deeper = use_deeper
         self.param_use_appnp = use_appnp
+        self.param_k = k
+        self.param_alpha = alpha
 
         self.epochs_no_improve = 0
         self.epoch_stop = self.DEBUG_BATCHES if self.debug else None
@@ -594,6 +643,8 @@ class GraphMemoryNetwork(GNNBaseline):
             norm=norm,
             mlp_layers=mlp_layers,
             use_appnp=use_appnp,
+            k=k,
+            alpha=alpha,
         ).to(self.device)
         no_keys_param_list = [
             param for name, param in self.model.named_parameters() if "keys" not in name
@@ -844,23 +895,47 @@ class Ensemble:
 if __name__ == "__main__":
     # sample model run
     exp = GraphMemoryNetwork(
-        dropout=0.5,
-        num_layers=5,
-        emb_dim=300,
-        epochs=1000,
-        lr=1e-3,
-        device=0,
-        batch_size=32,
-        num_workers=0,  # everything in the main process
-        num_heads=5,
-        hidden_dim=64,
-        num_keys=[32, 1],
-        mem_hidden_dim=16,
-        variant="distance",
-        lr_decay_patience=10,
-        kl_period=5,
-        early_stop_patience=50,
-        debug=True,
+        **{
+            "dropout": 0.5,
+            "num_layers": 7,
+            "emb_dim": 300,
+            "epochs": 100,
+            "lr": 1e-3,
+            "device": 0,
+            "batch_size": 32,
+            "num_workers": 0,
+            "num_heads": 5,
+            "hidden_dim": 256,
+            "num_keys": [32, 1],
+            "mem_hidden_dim": 16,
+            "variant": "gmn",
+            "lr_decay_patience": 10,
+            "kl_period": 5,
+            "early_stop_patience": 50,
+            "use_deeper": True,
+            "block": "res+",
+            "conv_encode_edge": True,
+            "add_virtual_node": True,
+            "conv": "gen",
+            "gcn_aggr": "softmax",
+            "t": 1.0,
+            "learn_t": True,
+            "p": 1.0,
+            "learn_p": False,
+            "y": 0.0,
+            "learn_y": False,
+            "msg_norm": False,
+            "learn_msg_scale": False,
+            "norm": "batch",
+            "mlp_layers": 1,
+            "use_appnp": True,
+            "flag": True,
+            "step_size": 1e-3,
+            "m": 3,
+            "k": 10,
+            "alpha": 0.1,
+            "debug": False,
+        }
     )
     exp.run()
 
