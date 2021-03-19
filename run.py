@@ -41,7 +41,7 @@ debug = False
 # eventually needs to be 5 runs per experiment to compute mean/std
 # see https://piazza.com/class/kjjj38qxifm2vx?cid=788
 runs = 5
-skip = True
+skip = False
 
 experiments = [
     Experiment(
