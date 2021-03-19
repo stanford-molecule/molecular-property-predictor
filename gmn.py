@@ -1,6 +1,8 @@
 """
 GMN.
-TODO: refactor and cite sources.
+Inspired by:
+- https://github.com/AaltoPML/Rethinking-pooling-in-GNNs
+- https://github.com/amirkhas/GraphMemoryNet
 """
 
 from enum import Enum
@@ -29,6 +31,7 @@ softmax = F.log_softmax
 def _flag(model, data, device, y, step_size, m, hidden_dim):
     """
     Runs FLAG for a batch.
+    this is borrowed from https://github.com/devnkong/FLAG/tree/main/ogb/graphproppred/mol
     """
 
     forward = lambda p: model(
@@ -176,8 +179,11 @@ def evaluate(model, loader, device, evaluator=None, data_split="", epoch_stop=No
     return acc, loss, kl_loss
 
 
-# code taken from https://github.com/snap-stanford/ogb/blob/master/examples/graphproppred/mol/conv.py
 class GCNConv(MessagePassing):
+    """
+    Taken from https://github.com/snap-stanford/ogb/blob/master/examples/graphproppred/mol/conv.py
+    """
+
     def __init__(self, emb_dim, aggr):
         super(GCNConv, self).__init__(aggr=aggr)
 
@@ -200,6 +206,10 @@ class GCNConv(MessagePassing):
 
 
 class MemConv(nn.Module):
+    """
+    Memory layer used in GMN.
+    """
+
     def __init__(
         self,
         num_features,
@@ -215,7 +225,6 @@ class MemConv(nn.Module):
         self.num_keys = num_keys
         self.num_features = num_features
         self.dim_out = dim_out
-
         self.variant = variant
 
         self.conv1x1 = nn.Conv2d(
@@ -226,7 +235,6 @@ class MemConv(nn.Module):
             padding=0,
             bias=False,
         )
-
         self.keys = torch.rand(heads, num_keys, num_features)
         if variant == "gmn":
             self.keys.requires_grad = True
@@ -242,75 +250,78 @@ class MemConv(nn.Module):
         self.sigma = LeakyReLU()
 
     @staticmethod
-    def KL_reg(C, mask=None):
-        P = C ** 2
-        cn = C.sum(dim=-2).unsqueeze(-2) + 1e-08
-        P = P / cn.expand_as(P)
-        pn = P.sum(dim=-1).unsqueeze(-1) + 1e-08
-        P = P / pn.expand_as(P)
+    def kl_reg(c, mask=None, eps=1e-8, const=100):
+        p = c ** 2
+        cn = c.sum(dim=-2).unsqueeze(-2) + eps
+        p = p / cn.expand_as(p)
+        pn = p.sum(dim=-1).unsqueeze(-1) + eps
+        p = p / pn.expand_as(p)
+        kl = (p * ((p + eps).log() - (c + eps).log())).sum()
+        return kl * const
 
-        kl = (P * ((P + 1e-08).log() - (C + 1e-08).log())).sum()
+    def _random(self, q, mask, tau=None):
+        c = (
+            self.rm[: q.shape[1], :]
+            .unsqueeze(0)
+            .expand(q.shape[0], -1, -1)
+            .to(q.device)
+        )
+        ext_mask = (
+            mask.unsqueeze(2).repeat(1, 1, self.keys.size(1)).to(c.dtype)
+            if mask is not None
+            else None
+        )
+        return c, ext_mask
 
-        return 100 * kl
+    def _distance(self, q, mask, tau=None):
+        qs = (
+            torch.unsqueeze(q, 1)
+            .expand(-1, self.heads, -1, -1)
+            .unsqueeze(dim=3)
+            .expand(-1, -1, -1, self.num_keys, -1)
+            .to(q.device)
+        )
+        keys = (
+            torch.unsqueeze(self.keys, dim=0)
+            .expand(qs.shape[0], -1, -1, -1)
+            .unsqueeze(2)
+            .expand(-1, -1, qs.shape[-3], -1, -1)
+            .to(q.device)
+        )
+        c = torch.sum(torch.abs(qs - keys) ** 2, dim=4).sqrt()
+        if mask is None:
+            return c, None
 
-    def forward(self, Q, mask, tau=1.0):
+        m = (
+            mask.unsqueeze(dim=1)
+            .unsqueeze(dim=3)
+            .repeat(1, self.heads, 1, self.keys.size(1))
+            .to(c.dtype)
+        )
+        c = c * m
+        return c, m
 
-        if self.variant == "random":
-            C = (
-                self.rm[: Q.shape[1], :]
-                .unsqueeze(0)
-                .expand(Q.shape[0], -1, -1)
-                .to(Q.device)
-            )
-            if mask is not None:
-                ext_mask = mask.unsqueeze(2).repeat(1, 1, self.keys.size(1)).to(C.dtype)
-        else:
-            broad_Q = (
-                torch.unsqueeze(Q, 1)
-                .expand(-1, self.heads, -1, -1)
-                .unsqueeze(3)
-                .expand(-1, -1, -1, self.num_keys, -1)
-                .to(Q.device)
-            )
-            broad_keys = (
-                torch.unsqueeze(self.keys, 0)
-                .expand(broad_Q.shape[0], -1, -1, -1)
-                .unsqueeze(2)
-                .expand(-1, -1, broad_Q.shape[-3], -1, -1)
-                .to(Q.device)
-            )
-            C = torch.sum(torch.abs(broad_Q - broad_keys) ** 2, 4).sqrt()
+    def _gmn(self, q, mask, tau):
+        c, ext_mask = self._distance(q, mask)
+        c = 1 + ((c ** 2) / tau)
+        c = c ** -(0.5 * tau + 0.5)
+        c = c / (c.sum(dim=-1).unsqueeze(dim=-1).expand_as(c))
+        return c, ext_mask
 
-            if mask is not None:
-                ext_mask = (
-                    mask.unsqueeze(1)
-                    .unsqueeze(3)
-                    .repeat(1, self.heads, 1, self.keys.size(1))
-                    .to(C.dtype)
-                )
-                C = C * ext_mask
-
-            if self.variant == "gmn":
-                C = (C ** 2) / tau
-                C = 1.0 + C
-                C = C ** -(0.5 * tau + 0.5)
-                C = C / (C.sum(dim=-1).unsqueeze(-1).expand_as(C))
-
-        if mask is not None:
-            C = C * ext_mask
-
-        if self.heads > 1 and self.variant != "random":
-            C = self.conv1x1(C)
-
-        C = F.softmax(C.squeeze(1), dim=-1)
-
-        if mask is not None:
-            C = C * mask.unsqueeze(-1).expand(-1, -1, self.keys.size(1)).to(C.dtype)
-
-        kl = self.KL_reg(C, mask)
-
-        V = C.transpose(1, 2) @ Q
-        return self.sigma(self.lin(V)), kl
+    def forward(self, q, mask, tau=1.0):
+        fns = {"random": self._random, "gmn": self._gmn, "distance": self._distance}
+        c, ext_mask = fns[self.variant](q, mask, tau)
+        c = c * ext_mask if mask is not None else c
+        c = self.conv1x1(c) if self.heads > 1 and self.variant != "random" else c
+        c = F.softmax(c.squeeze(1), dim=-1)
+        c = (
+            c * mask.unsqueeze(-1).expand(-1, -1, self.keys.size(1)).to(c.dtype)
+            if mask is not None
+            else c
+        )
+        kl = self.kl_reg(c, mask)
+        v = c.transpose(1, 2) @ q
+        return self.sigma(self.lin(v)), kl
 
 
 class Q0LayerType(str, Enum):
@@ -320,6 +331,13 @@ class Q0LayerType(str, Enum):
 
 
 class GMN(torch.nn.Module):
+    """
+    GMN with the following added:
+    - DeeperGCN node encoder
+    - APPNP node encoder
+    - FLAG adversarial data augmentation
+    """
+
     def __init__(
         self,
         num_feats,
@@ -351,6 +369,7 @@ class GMN(torch.nn.Module):
         use_appnp: bool = False,
         k: int = 10,
         alpha: float = 0.1,
+        mlp_hidden_dim: int = 50,
     ):
         super(GMN, self).__init__()
 
@@ -364,6 +383,7 @@ class GMN(torch.nn.Module):
         self.num_keys = num_keys
         self.variant = variant
 
+        self.atom_encoder = AtomEncoder(emb_dim=hidden_dim)
         self.q0s = torch.nn.ModuleDict()
         self.q0s[Q0LayerType.with_edge] = GCNConv(hidden_dim, aggr="add")
 
@@ -398,39 +418,35 @@ class GMN(torch.nn.Module):
             self.q0s[Q0LayerType.no_edge] = APPNP(K=self.k, alpha=self.alpha)
 
         self.bn = nn.BatchNorm1d(hidden_dim)
-        self.q1 = GraphConv(hidden_dim * len(self.q0s), hidden_dim)
+        self.q0_second = GraphConv(hidden_dim * len(self.q0s), hidden_dim)
         self.mem_layers = nn.ModuleList()
 
         max_dims = [self.max_nodes]
-        for i, n in enumerate(self.num_keys):
-            max_dims.append(n)
-
-            if i == 0:
-                num_feats = hidden_dim
-            else:
-                num_feats = mem_hidden_dim
-            mem = MemConv(
-                num_features=num_feats,
-                heads=self.num_heads,
-                num_keys=n,
-                dim_out=mem_hidden_dim,
-                variant=variant,
-                max_queries=max_dims[i],
+        for idx, num_keys in enumerate(self.num_keys):
+            max_dims.append(num_keys)
+            num_feats = hidden_dim if idx == 0 else mem_hidden_dim
+            self.mem_layers.append(
+                MemConv(
+                    num_features=num_feats,
+                    heads=self.num_heads,
+                    num_keys=num_keys,
+                    dim_out=mem_hidden_dim,
+                    variant=variant,
+                    max_queries=max_dims[idx],
+                )
             )
-            self.mem_layers.append(mem)
 
-        self.atom_encoder = AtomEncoder(emb_dim=hidden_dim)
-
-        self.MLP = nn.Sequential(
-            Linear(mem_hidden_dim, 50), nn.LeakyReLU(), Linear(50, self.num_classes)
+        self.mlp = nn.Sequential(
+            Linear(mem_hidden_dim, mlp_hidden_dim),
+            nn.LeakyReLU(),
+            Linear(mlp_hidden_dim, self.num_classes),
         )
 
-    def initial_query(self, batch, x, edge_index, edge_attr=None, perturb=None):
+    def _get_q0(self, batch, x, edge_index, edge_attr=None, perturb=None):
         x = self.atom_encoder(x)
         x = x + perturb if perturb is not None else x
 
         xs = []
-
         for layer_type, layer in self.q0s.items():
             if layer_type == Q0LayerType.deeper:
                 # this is a hack to avoid changing the API
@@ -445,28 +461,16 @@ class GMN(torch.nn.Module):
             elif layer_type == Q0LayerType.no_edge:
                 xs.append(layer(x, edge_index))
 
-        x = torch.cat(xs, dim=1)
-        x = F.relu(x)
-        x = F.relu(self.q1(x, edge_index))
-        return x
+        return F.relu(self.q0_second(F.relu(torch.cat(xs, dim=1)), edge_index))
 
     def forward(self, x, edge_index, batch, edge_attr, perturb=None):
-        q0 = self.initial_query(batch, x, edge_index, edge_attr, perturb)
+        q0 = self._get_q0(batch, x, edge_index, edge_attr, perturb)
         q0, mask = to_dense_batch(q0, batch=batch)
+        q0 = self.bn(q0.view(-1, q0.shape[-1])).view(*q0.size())
 
-        batch_size, num_nodes, num_channels = q0.size()
-        q0 = q0.view(-1, q0.shape[-1])
-        q0 = self.bn(q0)
-        q0 = q0.view(batch_size, num_nodes, num_channels)
-
-        q = q0
-        kl_total = 0
+        q, kl_total = q0, 0
         for i, mem_layer in enumerate(self.mem_layers):
-            if i != 0:
-                mask = None
-            q, kl = mem_layer(q, mask)
+            q, kl = mem_layer(q, mask if i == 0 else None)
             kl_total += kl
 
-        yh = self.MLP(q.mean(-2))
-
-        return yh, kl_total / len(batch)
+        return self.mlp(q.mean(dim=-2)), kl_total / len(batch)
