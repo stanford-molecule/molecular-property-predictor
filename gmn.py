@@ -250,11 +250,11 @@ class MemConv(nn.Module):
         self.sigma = LeakyReLU()
 
     @staticmethod
-    def kl_reg(c, mask=None, eps=1e-8, const=100):
+    def _compute_kl(c, mask=None, eps=1e-8, const=100):
         p = c ** 2
-        cn = c.sum(dim=-2).unsqueeze(-2) + eps
+        cn = c.sum(dim=-2).unsqueeze(dim=-2) + eps
         p = p / cn.expand_as(p)
-        pn = p.sum(dim=-1).unsqueeze(-1) + eps
+        pn = p.sum(dim=-1).unsqueeze(dim=-1) + eps
         p = p / pn.expand_as(p)
         kl = (p * ((p + eps).log() - (c + eps).log())).sum()
         return kl * const
@@ -319,7 +319,7 @@ class MemConv(nn.Module):
             if mask is not None
             else c
         )
-        kl = self.kl_reg(c, mask)
+        kl = self._compute_kl(c, mask)
         v = c.transpose(1, 2) @ q
         return self.sigma(self.lin(v)), kl
 
