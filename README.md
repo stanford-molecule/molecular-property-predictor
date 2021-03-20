@@ -1,7 +1,12 @@
-## Molecular Property Predictor
+# Molecular Property Predictor
+
+## Architecture
+
+![Architecture](https://user-images.githubusercontent.com/3375461/111858751-47485100-8976-11eb-9775-9dd693982f58.jpg)
 
 ## Setup
-```bash
+
+```sh
 conda create -n ogb python=3.7
 conda activate ogb
 
@@ -16,15 +21,18 @@ pip install -r requirements.txt
 ```
 
 ## Running experiments
+
 All experiments are listed in `run.py`. You can run all the experiments sequentially with:
-```bash
+
+```sh
 python run.py
 ``` 
 
 Note that that files contains all the arguments that define an experiment. The experiment results are stored in `results/` as pickle files. Also we're using W&B so if you're logged in the experiment will be streamed to W&B.
 
 For example you can run GMN with DeeperGCN, FLAG, and APPNP using the following:
-```python
+
+```py
 from models import GraphMemoryNetwork
 
 exp = GraphMemoryNetwork(**{
@@ -74,6 +82,7 @@ exp.run()
 see the class docstring for a description of these parameters.
 
 ## References
+
 Code is borrowed from or heavily inspired by:
 - [GraphMemoryNet](https://github.com/amirkhas/GraphMemoryNet)
 - [OGB](http://ogb.stanford.edu/)
