@@ -2,7 +2,7 @@
 
 ## Architecture
 
-![Architecture](https://user-images.githubusercontent.com/3375461/111858751-47485100-8976-11eb-9775-9dd693982f58.jpg)
+![Architecture](https://user-images.githubusercontent.com/3375461/111884282-95ebfe80-89fb-11eb-8254-55ad3d4b72c4.jpg)
 
 ## Setup
 
